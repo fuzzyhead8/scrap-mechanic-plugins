@@ -496,15 +496,15 @@ public sealed class ModInstallerTests : IDisposable
     private static ModManifest CopyManifest(
         ModManifest source,
         IReadOnlyList<ModFileEntry> files) => new()
-    {
-        SchemaVersion = source.SchemaVersion,
-        ModId = source.ModId,
-        Version = source.Version,
-        PayloadAsset = source.PayloadAsset,
-        PayloadSha256 = source.PayloadSha256,
-        SupportedBuildIds = source.SupportedBuildIds,
-        Files = files,
-    };
+        {
+            SchemaVersion = source.SchemaVersion,
+            ModId = source.ModId,
+            Version = source.Version,
+            PayloadAsset = source.PayloadAsset,
+            PayloadSha256 = source.PayloadSha256,
+            SupportedBuildIds = source.SupportedBuildIds,
+            Files = files,
+        };
 
     public void Dispose()
     {
