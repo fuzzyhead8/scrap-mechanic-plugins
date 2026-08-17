@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\ScrapMechanicModManager.Core\ScrapMechanicModManager.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\native-version-fixture.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

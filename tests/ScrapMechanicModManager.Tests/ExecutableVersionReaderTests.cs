@@ -17,6 +17,20 @@ public sealed class ExecutableVersionReaderTests
     }
 
     [Fact]
+    public void Reader_returns_product_version_from_a_native_windows_pe()
+    {
+        string executablePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "native-version-fixture.exe");
+        var reader = new ExecutableVersionReader();
+
+        string version = reader.ReadProductVersion(executablePath);
+
+        Assert.Equal("7.8.9.10", version);
+    }
+
+    [Fact]
     public void Reader_rejects_a_missing_executable()
     {
         var reader = new ExecutableVersionReader();
