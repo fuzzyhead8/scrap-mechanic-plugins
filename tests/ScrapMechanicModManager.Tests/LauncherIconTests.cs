@@ -53,6 +53,22 @@ public sealed class LauncherIconTests
             new HashSet<int> { 16, 24, 32, 48, 64, 128, 256 });
     }
 
+    [Fact]
+    public void Main_window_uses_the_embedded_executable_icon()
+    {
+        string mainFormPath = Path.Combine(
+            FindRepoRoot(),
+            "src",
+            "ScrapMechanicModManager",
+            "MainForm.cs");
+        string mainForm = File.ReadAllText(mainFormPath);
+
+        Assert.Contains(
+            "Icon.ExtractAssociatedIcon(Application.ExecutablePath)",
+            mainForm);
+        Assert.Contains("Icon = _applicationIcon", mainForm);
+    }
+
     private static string FindRepoRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

@@ -42,7 +42,7 @@ Release assetek létrehozása:
 
 ```powershell
 ./scripts/New-ReleasePayload.ps1 `
-  -Version 0.1.2 `
+  -Version 0.1.3 `
   -OutputDirectory artifacts/release
 ```
 
@@ -50,7 +50,7 @@ Release assetek létrehozása:
 
 1. A módosított fájlokat játékban tesztelni kell.
 2. Szükség esetén frissíteni kell a `distribution/supported-builds.txt` fájlt.
-3. Verziótag létrehozása, például `v0.1.2`.
+3. Verziótag létrehozása, például `v0.1.3`.
 4. A `.github/workflows/release.yml` elkészíti a single-file launchert, `manifest.json` fájlt és a payload ZIP-et.
 5. A kliensek a GitHub latest release API-jából kapják a frissítést.
 

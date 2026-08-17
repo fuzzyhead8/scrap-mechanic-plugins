@@ -47,6 +47,7 @@ public sealed class MainForm : Form
         Timeout = TimeSpan.FromSeconds(30),
     };
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly Icon? _applicationIcon;
     private readonly GitHubReleaseClient _releaseClient;
     private SteamInstallation? _selectedInstallation;
 
@@ -58,12 +59,18 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
+        _applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if (_applicationIcon is not null)
+        {
+            Icon = _applicationIcon;
+        }
+
         _releaseClient = new GitHubReleaseClient(
             _httpClient,
             RepositoryOwner,
             RepositoryName);
         string appVersion = typeof(MainForm).Assembly.GetName().Version?.ToString(3)
-            ?? "0.1.1";
+            ?? "0.1.3";
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager", appVersion));
 
@@ -80,6 +87,10 @@ public sealed class MainForm : Form
             _httpClient.Dispose();
         }
         base.Dispose(disposing);
+        if (disposing)
+        {
+            _applicationIcon?.Dispose();
+        }
     }
 
     private void InitializeUi()
