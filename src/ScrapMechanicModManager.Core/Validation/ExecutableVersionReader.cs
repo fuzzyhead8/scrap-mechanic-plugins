@@ -9,7 +9,7 @@ public sealed class ExecutableVersionReader
         if (!File.Exists(executablePath))
         {
             throw new FileNotFoundException(
-                "A verzióhoz szükséges executable nem található.",
+                "The executable required for version detection was not found.",
                 executablePath);
         }
 
@@ -18,7 +18,7 @@ public sealed class ExecutableVersionReader
         if (string.IsNullOrWhiteSpace(version))
         {
             throw new InvalidDataException(
-                $"Az executable nem tartalmaz verzióinformációt: {executablePath}");
+                $"The executable contains no version information: {executablePath}");
         }
 
         string normalized = version.Split(['+', ' '], StringSplitOptions.RemoveEmptyEntries)[0];

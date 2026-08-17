@@ -2,15 +2,15 @@
 
 > **REQUIRED SUB-SKILL:** Use the executing-plans skill to implement this plan task-by-task.
 
-**Goal:** Biztonságos, önfrissítő Windows launcher létrehozása a közösen használt Scrap Mechanic 1.0 Survival Lua fájlokhoz, GoldGrid-formátumú Obsidian projektkövetéssel.
+**Goal:** Build a safe self-updating Windows launcher for shared Scrap Mechanic 1.0 Survival Lua files, with local Obsidian project tracking.
 
-**Architecture:** Egy tesztelhető `net8.0` core library végzi a Steam/game felismerést, kompatibilitást, GitHub release feldolgozást és tranzakciós telepítést. Egy vékony `net8.0-windows` WinForms alkalmazás adja a felületet; publikus GitHub Releases biztosítja a manifestet és payloadot.
+**Architecture:** A testable `net8.0` Core library handles Steam/game discovery, compatibility, GitHub release processing, and transactional installation. A thin `net8.0-windows` WinForms application provides the UI, while public GitHub Releases provide the manifest and payload.
 
-**Tech Stack:** C# 12, .NET 8, WinForms, xUnit, PowerShell/GitHub Actions, Obsidian MCP.
+**Tech Stack:** C# 12, .NET 8, WinForms, xUnit, PowerShell, GitHub Actions, Obsidian MCP.
 
 ---
 
-### Task 1: Solution és kompatibilitási modellek
+### Task 1: Solution and compatibility models
 
 **Files:**
 - Create: `ScrapMechanicModManager.sln`
@@ -18,23 +18,23 @@
 - Create: `tests/ScrapMechanicModManager.Tests/ScrapMechanicModManager.Tests.csproj`
 - Test: `tests/ScrapMechanicModManager.Tests/GameInstallValidatorTests.cs`
 
-1. Írj tesztet, amely elutasítja a hiányzó 1.0 könyvtárstruktúrát.
-2. Futtasd és ellenőrizd a RED állapotot.
-3. Implementáld a minimális modelleket és validátort.
-4. Futtasd és ellenőrizd a GREEN állapotot.
+1. Write a test that rejects a missing Scrap Mechanic 1.0 directory structure.
+2. Run it and verify RED.
+3. Implement the minimal models and validator.
+4. Run it and verify GREEN.
 
-### Task 2: Steam Library és AppManifest felismerés
+### Task 2: Steam Library and AppManifest discovery
 
 **Files:**
 - Create: `src/ScrapMechanicModManager.Core/Steam/SteamLibraryLocator.cs`
 - Create: `src/ScrapMechanicModManager.Core/Steam/SteamAppManifest.cs`
 - Test: `tests/ScrapMechanicModManager.Tests/SteamLibraryLocatorTests.cs`
 
-1. Teszteld ideiglenes `libraryfolders.vdf` és `appmanifest_387990.acf` fájlokkal a több library-s felismerést.
-2. RED után implementálj dependency nélküli, célzott VDF-parsert.
-3. Ellenőrizd az AppID, `installdir`, `buildid` és `StateFlags` mezőket.
+1. Test multi-library discovery with temporary `libraryfolders.vdf` and `appmanifest_387990.acf` files.
+2. After RED, implement a focused dependency-free VDF parser.
+3. Validate AppID, `installdir`, `buildid`, and `StateFlags`.
 
-### Task 3: Release manifest és integritás
+### Task 3: Release manifest and integrity
 
 **Files:**
 - Create: `src/ScrapMechanicModManager.Core/Updates/ModManifest.cs`
@@ -42,11 +42,11 @@
 - Create: `src/ScrapMechanicModManager.Core/Security/HashService.cs`
 - Test: `tests/ScrapMechanicModManager.Tests/ManifestTests.cs`
 
-1. Teszteld a manifest schema, asset-név, build-lista és hash validálását.
-2. Teszteld a GitHub latest release válasz assetfeloldását fake HTTP handlerrel.
-3. Implementáld a minimális klienst és SHA-256 ellenőrzést.
+1. Test manifest schema, asset name, build list, and hash validation.
+2. Test GitHub latest-release asset resolution with a fake HTTP handler.
+3. Implement the minimal client and SHA-256 verification.
 
-### Task 4: Backup, install és restore
+### Task 4: Backup, installation, and restore
 
 **Files:**
 - Create: `src/ScrapMechanicModManager.Core/Installation/ModInstaller.cs`
@@ -54,10 +54,10 @@
 - Create: `src/ScrapMechanicModManager.Core/Installation/ZipPayloadValidator.cs`
 - Test: `tests/ScrapMechanicModManager.Tests/ModInstallerTests.cs`
 
-1. Teszteld ideiglenes game rooton a backup-before-write szabályt.
-2. Teszteld a ZIP path traversal, hibás hash és részleges payload tiltását.
-3. Teszteld a restore-t és a hiba utáni változatlan célállapotot.
-4. Implementálj staging + atomi cserét.
+1. Test backup-before-write with a temporary game root.
+2. Test rejection of ZIP path traversal, incorrect hashes, and partial payloads.
+3. Test restore and unchanged targets after failure.
+4. Implement staging and atomic replacement.
 
 ### Task 5: WinForms launcher
 
@@ -67,11 +67,11 @@
 - Create: `src/ScrapMechanicModManager/MainForm.cs`
 - Create: `src/ScrapMechanicModManager/app.manifest`
 
-1. Építs vékony UI-t a tesztelt core szolgáltatások fölé.
-2. Add hozzá az útvonal tallózást, státuszt, telepítést, restore-t, launchot és `-dev` opciót.
-3. Hibákat emberi nyelvű dialógusban és naplóban jeleníts meg.
+1. Build a thin UI over tested Core services.
+2. Add path browsing, status, installation, restore, launch, and optional `-dev` mode.
+3. Present failures through readable dialogs and logs.
 
-### Task 6: Release csomagolás
+### Task 6: Release packaging
 
 **Files:**
 - Create: `distribution/manifest.template.json`
@@ -79,27 +79,29 @@
 - Create: `.github/workflows/release.yml`
 - Modify: `README.md`
 
-1. Készíts tesztelhető manifest/payload generátort a változatlan `robots_01.zip` alapján.
-2. A workflow publikáljon self-contained `win-x64` launchert és release asseteket tag pushra.
-3. Dokumentáld, hogy GitHub hitelesítés nélkül lokálisan buildelhető, de release nem tölthető fel.
+1. Build a testable manifest/payload generator around the unchanged `robots_01.zip`.
+2. Publish a self-contained `win-x64` launcher and release assets on tag pushes.
+3. Document that local builds require no GitHub authentication, while publishing releases does.
 
-### Task 7: MCP és Obsidian projektkövetés
+### Task 7: MCP and local Obsidian tracking
 
 **Files:**
-- Modify: `.mcp.json`
-- Create in vault: `1_Projects/Scrap_Mechanic_Plugins/**`
-- Create in vault: `Scrap Mechanic Plugins Kanban.md`
+- Modify locally: `.mcp.json`
+- Create in private vault: `1_Projects/Scrap_Mechanic_Plugins/**`
+- Create in private vault: `Scrap Mechanic Plugins Kanban.md`
 
-1. Másold a generikus `web-tools` scriptet a projektbe, és állítsd a MCP útvonalát a helyi `.pi/scripts/web-tools-mcp.mjs` fájlra.
-2. Hozd létre a GoldGrid-formátumú indexeket, konvenciót, protokollt és task note-okat.
-3. Hozd létre a Kanban boardot egyetlen 🔴 aktuális taskkal.
-4. Obsidian MCP-vel olvasd vissza és ellenőrizd a frontmattert/wikilinkeket.
+1. Configure the generic local `web-tools` MCP script.
+2. Create project indexes, conventions, protocols, and task notes.
+3. Create a Kanban board with one current task.
+4. Read back and verify frontmatter and wikilinks through Obsidian MCP.
 
-### Task 8: Végső ellenőrzés
+Local agent/MCP configuration and the private vault were later removed from public tracking.
 
-1. Futtasd: `dotnet test ScrapMechanicModManager.sln`.
-2. Futtasd: `dotnet build ScrapMechanicModManager.sln -c Release`.
-3. Futtass self-contained publish smoke buildet.
-4. Ellenőrizd a ZIP hashét és tartalomlistáját.
-5. Ellenőrizd az Obsidian note-okat és a Kanban settings blokkot.
-6. Repo-szintű kereséssel zárd ki az örökölt projekthivatkozásokat.
+### Task 8: Final verification
+
+1. Run `dotnet test ScrapMechanicModManager.sln`.
+2. Run `dotnet build ScrapMechanicModManager.sln -c Release`.
+3. Run a self-contained publish smoke build.
+4. Verify ZIP hash and contents.
+5. Verify local Obsidian notes and Kanban settings.
+6. Search the repository for inherited project references.

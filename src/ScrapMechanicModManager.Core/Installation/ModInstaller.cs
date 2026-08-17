@@ -26,27 +26,27 @@ public sealed class ModInstaller(HashService? hashService = null)
         if (manifestErrors.Count > 0)
         {
             throw new InvalidDataException(
-                "A release manifest hibás: " + string.Join("; ", manifestErrors));
+                "The release manifest is invalid: " + string.Join("; ", manifestErrors));
         }
         if (manifest.Files.Any(file => TargetsGeneratedCacheDirectory(file.Target)))
         {
             throw new InvalidDataException(
-                "A generált Cache könyvtár nem lehet payload cél.");
+                "The generated Cache directory cannot be a payload target.");
         }
         if (!Directory.Exists(gameRoot))
         {
-            throw new DirectoryNotFoundException($"A game root nem létezik: {gameRoot}");
+            throw new DirectoryNotFoundException($"The game root does not exist: {gameRoot}");
         }
         if (!File.Exists(payloadZipPath))
         {
-            throw new FileNotFoundException("A payload ZIP nem található.", payloadZipPath);
+            throw new FileNotFoundException("The payload ZIP was not found.", payloadZipPath);
         }
         if (!await _hashService.VerifyFileAsync(
                 payloadZipPath,
                 manifest.PayloadSha256,
                 cancellationToken))
         {
-            throw new InvalidDataException("A payload ZIP SHA-256 ellenőrzése sikertelen.");
+            throw new InvalidDataException("Payload ZIP SHA-256 verification failed.");
         }
 
         Directory.CreateDirectory(backupRoot);
@@ -158,21 +158,21 @@ public sealed class ModInstaller(HashService? hashService = null)
     {
         if (!Directory.Exists(gameRoot))
         {
-            throw new DirectoryNotFoundException($"A game root nem létezik: {gameRoot}");
+            throw new DirectoryNotFoundException($"The game root does not exist: {gameRoot}");
         }
         if (!Directory.Exists(snapshotDirectory))
         {
-            throw new DirectoryNotFoundException($"A backup snapshot nem létezik: {snapshotDirectory}");
+            throw new DirectoryNotFoundException($"The backup snapshot does not exist: {snapshotDirectory}");
         }
 
         string metadataPath = Path.Combine(snapshotDirectory, ".snapshot.json");
         if (!File.Exists(metadataPath))
         {
-            throw new InvalidDataException("A backup snapshot metadata hiányzik.");
+            throw new InvalidDataException("Backup snapshot metadata is missing.");
         }
         SnapshotMetadata metadata = JsonSerializer.Deserialize<SnapshotMetadata>(
             await File.ReadAllTextAsync(metadataPath, cancellationToken))
-            ?? throw new InvalidDataException("A backup snapshot metadata hibás.");
+            ?? throw new InvalidDataException("Backup snapshot metadata is invalid.");
 
         var restoreFiles = new List<(SnapshotFile Metadata, string Target, string? Backup)>();
         foreach (SnapshotFile file in metadata.Files)
@@ -183,7 +183,7 @@ public sealed class ModInstaller(HashService? hashService = null)
                 : null;
             if (file.HadOriginal && !File.Exists(backupPath))
             {
-                throw new InvalidDataException($"Hiányzó backup fájl: {file.Target}");
+                throw new InvalidDataException($"Missing backup file: {file.Target}");
             }
             restoreFiles.Add((file, targetPath, backupPath));
         }
@@ -286,11 +286,11 @@ public sealed class ModInstaller(HashService? hashService = null)
             if (string.IsNullOrWhiteSpace(normalized)) continue;
             if (!ModManifest.IsSafeRelativePath(normalized))
             {
-                throw new InvalidDataException($"Nem biztonságos ZIP útvonal: {entry.FullName}");
+                throw new InvalidDataException($"Unsafe ZIP path: {entry.FullName}");
             }
             if (!entries.TryAdd(normalized, entry))
             {
-                throw new InvalidDataException($"Duplikált ZIP entry: {entry.FullName}");
+                throw new InvalidDataException($"Duplicate ZIP entry: {entry.FullName}");
             }
         }
 
@@ -301,7 +301,7 @@ public sealed class ModInstaller(HashService? hashService = null)
             if (!entries.TryGetValue(source, out ZipArchiveEntry? entry)
                 || string.IsNullOrEmpty(entry.Name))
             {
-                throw new InvalidDataException($"Hiányzó payload fájl: {file.Source}");
+                throw new InvalidDataException($"Missing payload file: {file.Source}");
             }
 
             string stagedPath = CombineSafe(stagingRoot, source);
@@ -318,7 +318,7 @@ public sealed class ModInstaller(HashService? hashService = null)
                     cancellationToken))
             {
                 throw new InvalidDataException(
-                    $"Fájl SHA-256 eltérés: {file.Source}");
+                    $"File SHA-256 mismatch: {file.Source}");
             }
         }
     }
@@ -360,7 +360,7 @@ public sealed class ModInstaller(HashService? hashService = null)
     {
         if (!ModManifest.IsSafeRelativePath(relativePath))
         {
-            throw new InvalidDataException($"Nem biztonságos relatív útvonal: {relativePath}");
+            throw new InvalidDataException($"Unsafe relative path: {relativePath}");
         }
 
         string fullRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
@@ -371,7 +371,7 @@ public sealed class ModInstaller(HashService? hashService = null)
             : StringComparison.Ordinal;
         if (!fullPath.StartsWith(fullRoot, pathComparison))
         {
-            throw new InvalidDataException($"Az útvonal kilép a célkönyvtárból: {relativePath}");
+            throw new InvalidDataException($"Path escapes the target directory: {relativePath}");
         }
         return fullPath;
     }

@@ -1,66 +1,62 @@
 # Scrap Mechanic Mod Manager — Design
 
-## Cél
+## Goal
 
-Egyetlen alkalommal kiosztandó Windows launcher/frissítő, amely a játékosoknál automatikusan megtalálja vagy bekéri a Scrap Mechanic útvonalát, ellenőrzi az 1.0-s játékstruktúrát, biztonságosan telepíti/frissíti a közös Survival Lua fájlokat, majd igény szerint elindítja a játékot.
+Distribute a Windows launcher/updater once and let it discover or request each player's Scrap Mechanic path, validate the 1.0 game structure, safely install or update shared Survival Lua files, and optionally launch the game.
 
-A `robots_01.zip` a felhasználó által játékban tesztelt, működő baseline. A launcher fejlesztése nem változtatja meg a ZIP drop-logikáját.
+`robots_01.zip` is the working baseline verified by the user in a live game. Launcher development does not change its drop logic.
 
-## Architektúra
+## Architecture
 
-A megoldás .NET 8 alapú, Windows x64 self-contained single-file alkalmazás:
+The original solution is a .NET 8 self-contained, single-file Windows x64 application:
 
-- `ScrapMechanicModManager.Core` — Steam felismerés, kompatibilitás, release API, hash, backup, telepítés és restore;
-- `ScrapMechanicModManager` — WinForms felület;
-- `ScrapMechanicModManager.Tests` — xUnit regressziós tesztek;
-- GitHub Releases — publikus frissítési csatorna.
+- `ScrapMechanicModManager.Core` — Steam discovery, compatibility, release API, hashes, backup, installation, and restore;
+- `ScrapMechanicModManager` — WinForms UI;
+- `ScrapMechanicModManager.Tests` — xUnit regression tests;
+- GitHub Releases — public update channel.
 
-A launcher a GitHub `latest release` API-jából keresi a `manifest.json` és a payload ZIP asseteket. A manifest rögzíti a modverziót, támogatott Steam build ID-ket, a ZIP SHA-256 értékét, a forrás–cél fájltérképet és az egyes fájlok hashét.
+The launcher obtains `manifest.json` and the payload ZIP from the GitHub latest-release API. The manifest records the mod version, supported Steam build IDs, ZIP SHA-256, source-to-target file map, and individual file hashes.
 
-## Telepítés folyamata
+The later Linux/Avalonia architecture is documented separately in `2026-08-17-linux-avalonia-launcher-design.md`.
 
-1. Steam rootok felismerése registryből és `libraryfolders.vdf` alapján.
-2. `appmanifest_387990.acf` és `installdir` ellenőrzése.
-3. Kézi mappaválasztás fallbackként.
-4. Validáció:
+## Installation flow
+
+1. Discover Steam roots from the Windows registry and `libraryfolders.vdf`.
+2. Validate `appmanifest_387990.acf` and `installdir`.
+3. Allow manual folder selection as a fallback.
+4. Validate:
    - AppID `387990`;
-   - `Release/ScrapMechanic.exe` létezik;
-   - ProductVersion főverziója `1`;
-   - a négy `robots_01` célfájl könyvtárstruktúrája létezik;
-   - a Steam `buildid` szerepel a release manifest támogatott listáján.
-5. Payload letöltése ideiglenes könyvtárba.
-6. ZIP és fájlok SHA-256 ellenőrzése, path traversal tiltása.
-7. Futó `ScrapMechanic.exe` esetén telepítés tiltása.
-8. Időbélyeges backup `%LocalAppData%/ScrapMechanicModManager/backups/` alatt.
-9. Stagingből célzott, atomi fájlcsere.
-10. Telepített állapot mentése és opcionális Steam-indítás.
+   - `Release/ScrapMechanic.exe` exists;
+   - ProductVersion major version is `1`;
+   - the four `robots_01` target paths have the expected structure;
+   - Steam `buildid` appears in the release manifest's supported list.
+5. Download the payload into a temporary directory.
+6. Verify ZIP and file SHA-256 values and reject path traversal.
+7. Refuse installation while `ScrapMechanic.exe` is running.
+8. Create a timestamped backup under `%LocalAppData%/ScrapMechanicModManager/backups/`.
+9. Perform targeted atomic file replacement from staging.
+10. Save installed state and optionally launch through Steam.
 
-## Biztonság és helyreállítás
+## Safety and recovery
 
-- Felülírás backup nélkül nem történhet.
-- Első futáskor az aktuális fájlok `pre-manager` mentést kapnak; ez lehet vanilla vagy korábbi kézi mod.
-- Minden frissítés külön snapshotot készít.
-- Restore a kiválasztott/latest snapshotból dolgozik.
-- Ismeretlen játékbuildnél a launcher nem telepít, csak diagnosztikát mutat.
-- Hálózati vagy hash hiba után a célfájlok változatlanok maradnak.
+- Never overwrite a target before its backup exists.
+- The first run captures the current files, which can be vanilla or a previous manual mod.
+- Every update creates a separate snapshot.
+- Restore uses the selected or latest snapshot.
+- Unknown game builds produce diagnostics and cannot be modified.
+- Network and hash failures leave target files unchanged.
+- Script-cache invalidation was added later and is documented in the current README and installer tests.
 
-## Felület
+## User interface
 
-- Scrap Mechanic útvonal mező + Tallózás;
-- játékverzió/build és modverzió státusz;
-- `Ellenőrzés`, `Telepítés / frissítés`, `Visszaállítás`, `Játék indítása`;
-- opcionális `-dev` indítás;
-- tömör, másolható napló.
+- Scrap Mechanic path field and Browse action;
+- game version/build and mod-version status;
+- Check, Install/update, Restore, and Launch actions;
+- optional `-dev` launch;
+- compact copyable log.
 
-## Obsidian követés
+The later bilingual UI uses a persistent Hungarian/English selector and is documented in `2026-08-17-bilingual-ui-design.md`.
 
-A vault a GoldGrid mintáját követi:
+## Local project tracking
 
-- `1_Projects/Scrap_Mechanic_Plugins/_index.md`;
-- `Setup & Config/_index.md`;
-- `Setup & Config/Kanban Priority System.md`;
-- `Setup & Config/Launcher & Update Protocol.md`;
-- `tasks/_index.md` és dátumozott task note-ok;
-- vault gyökérben `Scrap Mechanic Plugins Kanban.md`.
-
-Prioritások: 🔴 current, 🟠 high/blocked/bug, 🟡 research, 🔵 planned, ⚪ later, ✅ done. Kártyatagok: `#epic/scrap-mechanic-plugins`, `#task`, `#bug`.
+The private Obsidian vault follows the project's task, protocol, and Kanban conventions. It is intentionally not part of the public repository.

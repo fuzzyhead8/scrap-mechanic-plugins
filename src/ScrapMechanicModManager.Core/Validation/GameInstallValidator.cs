@@ -30,7 +30,7 @@ public sealed class GameInstallValidator
 
         if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
         {
-            errors.Add($"A Scrap Mechanic könyvtár nem létezik: {gameRoot}");
+            errors.Add($"The Scrap Mechanic directory does not exist: {gameRoot}");
         }
         else
         {
@@ -41,7 +41,7 @@ public sealed class GameInstallValidator
                     relativePath.Replace('/', Path.DirectorySeparatorChar));
                 if (!File.Exists(fullPath))
                 {
-                    errors.Add($"Hiányzó Scrap Mechanic 1.0 fájl: {relativePath}");
+                    errors.Add($"Missing Scrap Mechanic 1.0 file: {relativePath}");
                 }
             }
         }
@@ -49,16 +49,16 @@ public sealed class GameInstallValidator
         if (!Version.TryParse(productVersion, out Version? version) || version.Major != 1)
         {
             errors.Add(
-                $"Nem támogatott játékverzió: {productVersion ?? "ismeretlen"}. Scrap Mechanic 1.0 szükséges.");
+                $"Unsupported game version: {productVersion ?? "unknown"}. Scrap Mechanic 1.0 is required.");
         }
 
         if (string.IsNullOrWhiteSpace(steamBuildId))
         {
-            errors.Add("A Steam buildid nem állapítható meg.");
+            errors.Add("The Steam build ID could not be determined.");
         }
         else if (supportedBuildIds.Count > 0 && !supportedBuildIds.Contains(steamBuildId))
         {
-            errors.Add($"A Steam buildid nem támogatott: {steamBuildId}.");
+            errors.Add($"Unsupported Steam build ID: {steamBuildId}.");
         }
 
         return new GameInstallValidationResult(

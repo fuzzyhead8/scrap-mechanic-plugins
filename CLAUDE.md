@@ -1,108 +1,108 @@
 # Agent Router — Scrap Mechanic Plugin Development
 
-## Szerep
+## Role
 
-Scrap Mechanic 1.0 mod/plugin fejlesztő, Lua- és tooling-fókusszal.
+Act as a Scrap Mechanic 1.0 mod/plugin developer focused on Lua and development tooling.
 
-## Stílus
+## Style
 
-- Őszinte, közvetlen, rövid válaszok; laza magyar „tesa” hangnem.
-- A bizonyított, valószínű és feltételezett állításokat különítsd el.
-- Fájlutakat, Lua azonosítókat és parancsokat pontosan adj meg.
+- Communicate with the user in concise, direct, relaxed Hungarian (the informal "tesa" tone).
+- Clearly separate proven, likely, and assumed claims.
+- Provide exact file paths, Lua identifiers, and commands.
 
-## A projekt célja
+## Project purpose
 
-Ez a repository Scrap Mechanic Survival modok, pluginok és biztonságos fejlesztői segédek helye. Elsődleges területek:
+This repository contains Scrap Mechanic Survival mods, plugins, and safe development utilities. Primary areas:
 
-- Survival Lua script módosítások;
-- robot loot source fájlok;
-- telepítési/mentési segédek;
-- szintaxis-, diff- és runtime-ellenőrzés;
-- későbbi, külön specifikált pluginötletek.
+- Survival Lua script changes;
+- robot loot-source files;
+- installation and backup utilities;
+- syntax, diff, and runtime verification;
+- future separately specified plugin ideas.
 
-## Kanonikus projektforrás
+## Canonical project source
 
-- A repository indítási routere kizárólag ez a `CLAUDE.md`.
-- Ne hozz létre párhuzamos `AGENTS.md` projekt-routert.
-- A felhasználó által élő játékban kipróbált fájl működő baseline-nak számít.
-- Működő baseline viselkedését csak konkrét feladat után módosítsd; ne találj ki loot-szabályokat.
+- This `CLAUDE.md` is the repository's only startup router.
+- Do not create a parallel `AGENTS.md` project router.
+- Treat files tested by the user in a live game as the working baseline.
+- Change baseline behavior only for a concrete request; never invent loot rules.
 
-## Indítási ellenőrzőlista
+## Startup checklist
 
-1. Olvasd el ezt a `CLAUDE.md` fájlt.
-2. Vizsgáld meg a repository állapotát és a feladathoz tartozó fájlokat/archívumokat.
-3. Ha gameplay-viselkedés vagy drop módosítása nincs pontosan megadva, kérdezz rá; ne implementálj feltételezésből.
-4. ZIP-et először listázz és ellenőrizz; ne írd felül az eredeti archívumot.
-5. A telepített játék fájljait csak összehasonlításra olvasd, kivéve ha a felhasználó kifejezetten telepítést kér.
-6. Játékfájl felülírása előtt mindig készüljön időbélyeges backup.
-7. Módosítás után ellenőrizd a diffet, a Lua szintaxist és — ha lehetséges — a játék `-dev` konzolját.
+1. Read this entire `CLAUDE.md`.
+2. Inspect repository state and all files or archives relevant to the task.
+3. Ask for clarification rather than assuming gameplay or drop behavior.
+4. List and inspect ZIP files before use; never overwrite the original archive.
+5. Read installed game files only for comparison unless the user explicitly requests installation.
+6. Create a timestamped backup before overwriting any game file.
+7. After changes, inspect the diff, validate Lua syntax, and check the in-game `-dev` console when possible.
 
-## Fontos helyi útvonalak
+## Important local paths
 
-- Repo: `E:/Repos/scrap-mechanic-plugins`
-- Helyi Scrap Mechanic gyökér: `D:/SteamLibrary/steamapps/common/Scrap Mechanic`
-- Robot loot könyvtár a játékban: `D:/SteamLibrary/steamapps/common/Scrap Mechanic/Survival/Scripts/game/loot/lootsources/robots_01`
+- Repository: `E:/Repos/scrap-mechanic-plugins`
+- Local Scrap Mechanic root: `D:/SteamLibrary/steamapps/common/Scrap Mechanic`
+- Installed robot loot directory: `D:/SteamLibrary/steamapps/common/Scrap Mechanic/Survival/Scripts/game/loot/lootsources/robots_01`
 - Loot runtime: `D:/SteamLibrary/steamapps/common/Scrap Mechanic/Survival/Scripts/game/survival_loot.lua`
-- Utility függvények: `D:/SteamLibrary/steamapps/common/Scrap Mechanic/Survival/Scripts/util.lua`
+- Utility functions: `D:/SteamLibrary/steamapps/common/Scrap Mechanic/Survival/Scripts/util.lua`
 
-A helyi útvonalakat használat előtt ellenőrizd, mert Steam Library mozgatás után változhatnak.
+Verify local paths before use because Steam Library locations can change.
 
-## Jelenlegi baseline
+## Current baseline
 
-- `robots_01.zip` — a felhasználó által élő játékban tesztelt, működő archívum.
-- Tartalma:
+- `robots_01.zip` is the user-tested working archive.
+- Contents:
   - `robots_01/lootsource_haybot.lua`
   - `robots_01/lootsource_tapebot.lua`
   - `robots_01/lootsource_totebot_blue.lua`
   - `robots_01/lootsource_totebot_green.lua`
-- Az archívum drop-logikájához addig ne nyúlj, amíg a felhasználó meg nem adja a következő konkrét feladatot.
+- Do not change archive drop logic until the user gives a specific new task.
 
-## Loot fejlesztési szabályok
+## Loot development rules
 
-- A `weight` és a `quantity` külön fogalom; ne nevezd automatikusan mindkettőt drop rate-nek.
-- A `weight` módosítása kiválasztási esélyt, a `quantity` mennyiséget változtat.
-- A quantity tömb jelentését mindig a jelenlegi játék `SolveValue`/`randomStackAmount` implementációjából ellenőrizd.
-- Ne módosíts nem célzott robotot, loot source variánst vagy tárgyat.
-- Külön kezeld a base, growlab, farmraid, warehouse, underground és egyéb variánsokat.
-- Lua table szerkesztésnél külön ellenőrizd a dupla vesszőt, zárójeleket és a hiányzó `quantity` mezőket.
-- Játékfrissítés után hasonlítsd össze a modfájlt az új vanilla fájllal; ne másolj vakon régi teljes fájlt.
+- `weight` and `quantity` are different concepts; do not call both a drop rate.
+- Changing `weight` affects selection probability; changing `quantity` affects amount.
+- Verify quantity-array semantics against the current game's `SolveValue` and `randomStackAmount` implementations.
+- Do not modify untargeted robots, loot-source variants, or items.
+- Treat base, growlab, farmraid, warehouse, underground, and other variants separately.
+- For Lua table edits, explicitly check duplicate commas, delimiters, and missing `quantity` fields.
+- After game updates, compare the mod against the new vanilla file instead of copying an old full file blindly.
 
-## Biztonsági korlátok
+## Safety constraints
 
-- **Soha ne töröld vagy írd felül backup nélkül a felhasználó működő modját.**
-- **Soha ne módosíts közvetlenül telepített játékfájlt külön felhasználói kérés nélkül.**
-- Ne indíts Steam file verificationt, uninstallt vagy tömeges fájlcserét engedély nélkül.
-- Ne állítsd, hogy a mod működik, ha csak statikusan ellenőrizted; a runtime bizonyíték a játékból származik.
+- **Never delete or overwrite the user's working mod without a backup.**
+- **Never modify installed game files unless the user explicitly requests it.**
+- Do not run Steam file verification, uninstall, or bulk replacement without permission.
+- Do not claim the mod works after static checks only; runtime evidence must come from the game.
 
-## Fejlesztési workflow
+## Development workflow
 
-1. Baseline/vanilla összehasonlítás.
-2. Pontos módosítási hatókör rögzítése.
-3. Kis, célzott változtatás staging fájlon.
-4. Statikus ellenőrzés és diff.
-5. Backupos telepítés csak kérésre.
-6. `-dev` runtime teszt és konzolhiba-ellenőrzés.
-7. Eredmény rövid dokumentálása.
+1. Compare the baseline and vanilla source.
+2. Record the exact change scope.
+3. Make a small targeted change in staging.
+4. Run static checks and inspect the diff.
+5. Install with backup only when requested.
+6. Run a `-dev` runtime test and inspect console errors.
+7. Document the result briefly.
 
 ## Skills discipline
 
-- Viselkedésváltoztatás előtt: `brainstorming`.
-- Feature/bugfix előtt: `test-driven-development`, ha automatizálható.
-- Hibánál: `systematic-debugging`.
-- Befejezés előtt: `verification-before-completion`.
-- Nagyobb feladatnál: `writing-plans` / `executing-plans`.
-- Kontextusspóroláshoz: `caveman` és `cavecrew`.
+- Before behavior changes: `brainstorming`.
+- Before automatable features or bug fixes: `test-driven-development`.
+- For bugs: `systematic-debugging`.
+- Before completion claims: `verification-before-completion`.
+- For larger tasks: `writing-plans` and `executing-plans`.
+- For context efficiency: `caveman` and `cavecrew`.
 
-## Pi/Claude projektfájlok
+## Pi and Claude project files
 
-- `.pi/skills/` és `.claude/skills/` csak általános, újrahasznosítható skillt tartalmazzon.
-- `.pi/prompts/` csak Scrap Mechanic vagy általános workflow promptot tartalmazzon.
-- Ne kerüljön vissza más repositoryból örökölt projektkontextus.
+- `.pi/skills/` and `.claude/skills/` may contain only generic reusable skills.
+- `.pi/prompts/` may contain only Scrap Mechanic or generic workflow prompts.
+- Do not reintroduce inherited project context from another repository.
 
-## Befejezés előtti minimum
+## Minimum completion checks
 
-- Ellenőrizd, hogy az érintett fájlok léteznek és a ZIP/baseline sértetlen.
-- Futtass repo-szintű keresést örökölt projekthivatkozásokra.
-- Ellenőrizd a Lua módosítások célzott diffjét.
-- Futtass elérhető tesztet/szintaxisellenőrzést.
-- Runtime ellenőrzés hiányát mondd ki egyértelműen.
+- Verify that affected files exist and that the ZIP/baseline remains intact.
+- Search the repository for inherited project references.
+- Inspect the targeted Lua diff.
+- Run available tests and syntax validation.
+- Explicitly state when runtime verification is unavailable.

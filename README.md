@@ -1,12 +1,12 @@
 # Scrap Mechanic Plugins
 
-Scrap Mechanic 1.0 Survival modok és a közös modverziót kezelő Windows launcher repositoryja.
+Repository for Scrap Mechanic 1.0 Survival mods and the Windows/Linux launchers that manage the shared mod version.
 
-## Működő baseline
+## Working baseline
 
-A `robots_01.zip` a felhasználó által élő játékban tesztelt robot-loot csomag. A launcher fejlesztése nem módosítja a ZIP drop-logikáját.
+`robots_01.zip` is the robot-loot package verified by the user in a live game. Launcher development does not change its drop logic.
 
-Tartalma a játékban ide kerül:
+The package installs into:
 
 ```text
 Survival/Scripts/game/loot/lootsources/robots_01
@@ -14,22 +14,26 @@ Survival/Scripts/game/loot/lootsources/robots_01
 
 ## Scrap Mechanic Mod Manager
 
-A .NET 8 WinForms launcher:
+The .NET 8 launchers:
 
-- automatikusan felismeri a Steam Library-ket;
-- kézi útvonalválasztást is enged;
-- ellenőrzi a Steam AppID-t, build ID-t, ProductVersiont és az 1.0-s könyvtárstruktúrát;
-- publikus GitHub Releases csatornáról tölti le a manifestet és a payloadot;
-- SHA-256-tal ellenőrzi a ZIP-et és minden telepítendő fájlt;
-- időbélyeges backupot készít felülírás előtt;
-- backup után invalidálja a `Cache/Bundle/core_data.cbo` script-cache-t, így nem kell `-dev` az új Lua fájlok betöltéséhez;
-- saját, többfelbontású Scrap Mechanic-hangulatú alkalmazásikont használ;
-- támogatja a restore-t és a Steam játékindítást;
-- futó játék vagy ismeretlen build esetén nem telepít.
+- discover Steam libraries automatically and allow manual folder selection;
+- validate Steam AppID, build ID, ProductVersion, and the Scrap Mechanic 1.0 directory structure;
+- download the manifest and payload from public GitHub Releases;
+- verify the ZIP and every installed file with SHA-256;
+- create timestamped backups before overwriting any game file;
+- invalidate `Cache/Bundle/core_data.cbo` only after backup, so updated Lua files load without requiring `-dev`;
+- use an original multi-resolution application icon inspired by Scrap Mechanic;
+- support restore and Steam game launch;
+- refuse installation while the game is running or when the build is unknown;
+- start in Hungarian by default and provide a persistent `Magyar / English` selector with immediate UI refresh.
+
+## Windows launcher
+
+The tested WinForms launcher is published as a self-contained, single-file `win-x64` executable. It requests elevation only when an operation needs to write into the Steam game directory.
 
 ## Linux preview
 
-A separate Avalonia GUI targets `linux-x64` Steam Proton installations while the tested WinForms launcher remains unchanged. It discovers native and Flatpak Steam roots, uses the same validation/install/restore Core, and never invokes `sudo` automatically.
+A separate Avalonia GUI targets `linux-x64` Steam Proton installations while the tested WinForms launcher remains intact. It discovers native and Flatpak Steam roots, uses the same validation/install/restore Core, and never invokes `sudo` automatically.
 
 Required Debian/Ubuntu libraries:
 
@@ -39,12 +43,13 @@ sudo apt install libx11-6 libice6 libsm6 libfontconfig1
 
 Linux support remains a preview until install, launch, gameplay, cache invalidation, and restore pass on a real Steam Proton system. Portable instructions are included in `distribution/linux/README-Linux.txt`.
 
-## Fejlesztői parancsok
+## Development commands
 
 ```powershell
 dotnet restore ScrapMechanicModManager.sln
 dotnet test ScrapMechanicModManager.sln
 dotnet build ScrapMechanicModManager.sln -c Release
+
 dotnet publish src/ScrapMechanicModManager/ScrapMechanicModManager.csproj `
   -c Release -r win-x64 --self-contained true `
   -p:PublishSingleFile=true -o artifacts/launcher
@@ -54,7 +59,7 @@ dotnet publish src/ScrapMechanicModManager.Desktop/ScrapMechanicModManager.Deskt
   -p:PublishSingleFile=true -o artifacts/linux-publish
 ```
 
-Release assetek létrehozása:
+Create release assets:
 
 ```powershell
 ./scripts/New-ReleasePayload.ps1 `
@@ -62,18 +67,18 @@ Release assetek létrehozása:
   -OutputDirectory artifacts/release
 ```
 
-## Release folyamat
+## Release process
 
-1. A módosított fájlokat játékban tesztelni kell.
-2. Szükség esetén frissíteni kell a `distribution/supported-builds.txt` fájlt.
-3. Verziótag létrehozása, például `v0.2.0-preview.1`.
-4. A `.github/workflows/release.yml` elkészíti a Windows EXE-t, a Linux `tar.gz` launchert, a `manifest.json` fájlt és a payload ZIP-et.
-5. A kliensek a GitHub latest release API-jából kapják a frissítést.
+1. Verify modified gameplay files in a live game.
+2. Update `distribution/supported-builds.txt` when required.
+3. Create a version tag such as `v0.2.0-preview.1`.
+4. `.github/workflows/release.yml` builds the Windows EXE, Linux `tar.gz`, `manifest.json`, and payload ZIP.
+5. Stable clients query the GitHub latest-release API. Prereleases do not replace the stable latest channel.
 
 > [!NOTE]
-> A Lua fájlok módosítása után a `core_data.cbo` cache invalidálása kötelező; ezt a launcher install és restore közben automatikusan, backup után végzi.
+> Lua changes require invalidating the `core_data.cbo` cache. Install and restore perform this automatically and only after creating a backup.
 
-## Helyi ellenőrzött környezet
+## Locally verified environment
 
 ```text
 Game root: D:/SteamLibrary/steamapps/common/Scrap Mechanic
@@ -82,16 +87,14 @@ ProductVersion: 1.0.5.876
 Steam buildid: 24529696
 ```
 
-## Biztonsági szabályok
+## Safety rules
 
-- Telepített játékfájlt backup nélkül nem írunk felül.
-- Ismeretlen buildre fail-closed módon nem telepítünk.
-- A `weight` kiválasztási súly; a `quantity` mennyiség.
-- Játékfrissítés után vanilla/mod diff és új runtime teszt szükséges.
-- Statikus teszt nem helyettesíti a játék `-dev` konzol ellenőrzését.
+- Never overwrite installed game files without a backup.
+- Fail closed on unknown game builds.
+- `weight` is a selection weight; `quantity` is an amount.
+- Compare vanilla and mod files and repeat runtime tests after every game update.
+- Static verification does not replace checking the in-game `-dev` console.
 
-## Obsidian követés
+## Local project tracking
 
-- Projekt: `1_Projects/Scrap_Mechanic_Plugins/_index.md`
-- Task index: `1_Projects/Scrap_Mechanic_Plugins/tasks/_index.md`
-- Kanban: `Scrap Mechanic Plugins Kanban.md`
+The private Obsidian vault tracks the project, tasks, and Kanban board. Vault content is intentionally not part of this public repository.
