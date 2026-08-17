@@ -36,6 +36,30 @@ public sealed class LinuxDesktopProjectTests
         Assert.Contains("ScrapMechanicModManager.Desktop", solution);
     }
 
+    [Fact]
+    public void Avalonia_window_uses_shared_localization_and_immediate_rerendering()
+    {
+        string repoRoot = FindRepoRoot();
+        string projectDirectory = Path.Combine(
+            repoRoot,
+            "src",
+            "ScrapMechanicModManager.Desktop");
+        string xaml = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml"));
+        string code = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml.cs"));
+
+        Assert.Contains("x:Name=\"LanguageComboBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectionChanged=\"OnLanguageChanged\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AppLocalizer _localizer", code, StringComparison.Ordinal);
+        Assert.Contains("ManagerSettingsStore _settingsStore", code, StringComparison.Ordinal);
+        Assert.Contains("List<LocalizedMessage> _logMessages", code, StringComparison.Ordinal);
+        Assert.Contains("ApplyLocalizedText", code, StringComparison.Ordinal);
+        Assert.Contains("RenderLocalizedState", code, StringComparison.Ordinal);
+        Assert.Contains("RenderLog", code, StringComparison.Ordinal);
+        Assert.Contains("OnLanguageChangedAsync", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("private sealed record ManagerSettings", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonSerializer", code, StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

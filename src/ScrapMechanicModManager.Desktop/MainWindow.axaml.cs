@@ -1,11 +1,13 @@
 using System.Net.Http.Headers;
-using System.Text.Json;
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using ScrapMechanicModManager.Core.Installation;
+using ScrapMechanicModManager.Core.Localization;
 using ScrapMechanicModManager.Core.Platform;
 using ScrapMechanicModManager.Core.Security;
+using ScrapMechanicModManager.Core.Settings;
 using ScrapMechanicModManager.Core.Steam;
 using ScrapMechanicModManager.Core.Updates;
 using ScrapMechanicModManager.Core.Validation;
@@ -17,6 +19,12 @@ public sealed partial class MainWindow : Window
     private const string RepositoryOwner = "fuzzyhead8";
     private const string RepositoryName = "scrap-mechanic-plugins";
 
+    private readonly TextBlock _header;
+    private readonly TextBlock _subtitle;
+    private readonly TextBlock _gameRootLabel;
+    private readonly TextBlock _languageLabel;
+    private readonly ComboBox _languageSelector;
+    private readonly TextBlock _footer;
     private readonly TextBox _gameRoot;
     private readonly Button _browse;
     private readonly Button _check;
@@ -42,7 +50,15 @@ public sealed partial class MainWindow : Window
     };
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly GitHubReleaseClient _releaseClient;
+    private readonly AppLocalizer _localizer = new();
+    private readonly ManagerSettingsStore _settingsStore = new(SettingsPath);
+    private readonly List<LocalizedMessage> _logMessages = [];
+    private readonly List<DateTime> _logTimestamps = [];
+    private ManagerSettings _settings = ManagerSettings.Default;
+    private LocalizedMessage _gameStatusMessage = new(TextKey.GameStatusNotChecked);
+    private LocalizedMessage _modStatusMessage = new(TextKey.ModStatusNotChecked);
     private SteamInstallation? _selectedInstallation;
+    private bool _applyingLanguage;
 
     private static string AppDataRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -53,6 +69,12 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _header = this.FindControl<TextBlock>("HeaderText")!;
+        _subtitle = this.FindControl<TextBlock>("SubtitleText")!;
+        _gameRootLabel = this.FindControl<TextBlock>("GameRootLabelText")!;
+        _languageLabel = this.FindControl<TextBlock>("LanguageLabelText")!;
+        _languageSelector = this.FindControl<ComboBox>("LanguageComboBox")!;
+        _footer = this.FindControl<TextBlock>("FooterText")!;
         _gameRoot = this.FindControl<TextBox>("GameRootTextBox")!;
         _browse = this.FindControl<Button>("BrowseButton")!;
         _check = this.FindControl<Button>("CheckButton")!;
@@ -64,6 +86,10 @@ public sealed partial class MainWindow : Window
         _modStatus = this.FindControl<TextBlock>("ModStatusText")!;
         _progress = this.FindControl<ProgressBar>("ProgressBar")!;
         _log = this.FindControl<TextBox>("LogTextBox")!;
+
+        _settings = _settingsStore.LoadAsync().GetAwaiter().GetResult();
+        _localizer.Language = _settings.Language;
+        ApplyLocalizedText();
 
         _releaseClient = new GitHubReleaseClient(
             _httpClient,
@@ -112,24 +138,33 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private async void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_applyingLanguage) return;
+        await RunBusyAsync(OnLanguageChangedAsync);
+    }
+
     private async Task AutoDetectAsync()
     {
-        ManagerSettings? settings = await LoadSettingsAsync();
-        if (!string.IsNullOrWhiteSpace(settings?.GameRoot)
-            && Directory.Exists(settings.GameRoot))
+        if (!string.IsNullOrWhiteSpace(_settings.GameRoot)
+            && Directory.Exists(_settings.GameRoot))
         {
             try
             {
-                _selectedInstallation = ResolveSelectedInstallation(settings.GameRoot);
-                _gameRoot.Text = settings.GameRoot;
+                _selectedInstallation = ResolveSelectedInstallation(_settings.GameRoot);
+                _gameRoot.Text = _settings.GameRoot;
                 ShowLocalGameStatus();
-                Log("Mentett játékútvonal betöltve.");
+                Log(TextKey.LogSavedGameRootLoaded);
                 return;
             }
-            catch (InvalidOperationException error)
+            catch (UserFacingException)
             {
-                Log("A mentett játékútvonal már nem érvényes: " + error.Message);
+                Log(TextKey.LogSavedGameRootInvalid, _settings.GameRoot);
             }
+        }
+        else if (!string.IsNullOrWhiteSpace(_settings.GameRoot))
+        {
+            Log(TextKey.LogSavedGameRootInvalid, _settings.GameRoot);
         }
 
         foreach (string steamRoot in _steamRootDiscovery.FindCandidateRoots())
@@ -145,13 +180,13 @@ public sealed partial class MainWindow : Window
             _selectedInstallation = installation;
             _gameRoot.Text = installation.GameRoot;
             ShowLocalGameStatus();
-            await SaveSettingsAsync(installation.GameRoot);
-            Log($"Steam Proton telepítés automatikusan megtalálva: {installation.GameRoot}");
+            await SaveCurrentSettingsAsync(installation.GameRoot);
+            Log(TextKey.LogAutoDetectedSteamProtonInstall, installation.GameRoot);
             return;
         }
 
-        _gameStatus.Text = "Játék: nem található automatikusan";
-        Log("A Scrap Mechanic nem található automatikusan. Használd a Tallózás gombot.");
+        SetGameStatus(TextKey.GameStatusNotFoundAutomatically);
+        Log(TextKey.LogAutoDetectFailedUseBrowse);
     }
 
     private async Task BrowseForGameRootAsync()
@@ -159,7 +194,7 @@ public sealed partial class MainWindow : Window
         IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(
             new FolderPickerOpenOptions
             {
-                Title = "Válaszd ki a Scrap Mechanic gyökérmappáját",
+                Title = _localizer.Get(TextKey.DialogSelectGameRootTitle),
                 AllowMultiple = false,
             });
         string? selectedPath = folders.FirstOrDefault()?.TryGetLocalPath();
@@ -170,8 +205,8 @@ public sealed partial class MainWindow : Window
 
         _gameRoot.Text = selectedPath;
         _selectedInstallation = null;
-        _gameStatus.Text = "Játék: útvonal megadva, ellenőrzés szükséges";
-        _modStatus.Text = "Mod: nincs ellenőrizve";
+        SetGameStatus(TextKey.GameStatusPathProvidedNeedsCheck);
+        SetModStatus(TextKey.ModStatusNotChecked);
     }
 
     private async Task CheckForUpdatesAsync()
@@ -194,12 +229,11 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        _gameStatus.Text =
-            $"Játék: Scrap Mechanic {productVersion} · Steam build {installation.BuildId}";
-        _modStatus.Text = allCurrent
-            ? $"Mod: naprakész ({release.Manifest.Version})"
-            : $"Mod: telepítés/frissítés elérhető ({release.Manifest.Version})";
-        Log($"Latest release: {release.TagName}; támogatott build: {installation.BuildId}.");
+        SetGameStatus(TextKey.GameStatusReady, productVersion, installation.BuildId);
+        SetModStatus(
+            allCurrent ? TextKey.ModStatusUpToDate : TextKey.ModStatusUpdateAvailable,
+            release.Manifest.Version);
+        Log(TextKey.LogLatestRelease, release.TagName, installation.BuildId);
     }
 
     private async Task InstallLatestAsync()
@@ -214,7 +248,7 @@ public sealed partial class MainWindow : Window
             $"smmm-{Guid.NewGuid():N}-{release.Manifest.PayloadAsset}");
         try
         {
-            Log($"Payload letöltése: {release.PayloadDownloadUrl}");
+            Log(TextKey.LogPayloadDownload, release.PayloadDownloadUrl);
             using HttpResponseMessage response = await _httpClient.GetAsync(
                 release.PayloadDownloadUrl,
                 HttpCompletionOption.ResponseHeadersRead,
@@ -234,19 +268,19 @@ public sealed partial class MainWindow : Window
                 release.Manifest,
                 BackupRoot,
                 _lifetimeCancellation.Token);
-            await SaveSettingsAsync(installation.GameRoot);
-            _modStatus.Text = $"Mod: telepítve ({release.Manifest.Version})";
-            Log($"Telepítve: {result.InstalledFileCount} fájl.");
-            Log($"Backup: {result.BackupDirectory}");
+            await SaveCurrentSettingsAsync(installation.GameRoot);
+            SetModStatus(TextKey.ModStatusInstalled, release.Manifest.Version);
+            Log(TextKey.LogInstalledFiles, result.InstalledFileCount);
+            Log(TextKey.LogBackupDirectory, result.BackupDirectory);
             if (result.CacheBundleInvalidated)
             {
-                Log("A core_data.cbo script-cache backupolva és invalidálva.");
+                Log(TextKey.LogScriptCacheInvalidated);
             }
         }
         catch (UnauthorizedAccessException error)
         {
-            throw new InvalidOperationException(
-                "A Steam játékmappa nem írható. Ellenőrizd a könyvtár tulajdonosát és jogosultságait; ne futtasd a launchert sudo-val.",
+            throw new UserFacingException(
+                TextKey.ErrorSteamGameDirectoryNotWritable,
                 error);
         }
         finally
@@ -270,12 +304,14 @@ public sealed partial class MainWindow : Window
             : null;
         if (latestSnapshot is null)
         {
-            throw new InvalidOperationException("Nincs visszaállítható backup snapshot.");
+            throw new UserFacingException(TextKey.ErrorNoBackupSnapshot);
         }
 
         bool confirmed = await ShowConfirmationAsync(
-            "Backup visszaállítása",
-            $"Visszaállítod ezt a mentést?\n\n{latestSnapshot}");
+            TextKey.DialogRestoreBackupTitle,
+            TextKey.DialogRestoreBackupMessage,
+            TextKey.DialogButtonRestore,
+            latestSnapshot);
         if (!confirmed)
         {
             return;
@@ -285,11 +321,11 @@ public sealed partial class MainWindow : Window
             installation.GameRoot,
             latestSnapshot,
             _lifetimeCancellation.Token);
-        _modStatus.Text = "Mod: backup visszaállítva";
-        Log($"Backup visszaállítva: {latestSnapshot}");
+        SetModStatus(TextKey.ModStatusBackupRestored);
+        Log(TextKey.LogBackupRestored, latestSnapshot);
         if (cacheBundleInvalidated)
         {
-            Log("A core_data.cbo script-cache backupolva és invalidálva.");
+            Log(TextKey.LogScriptCacheInvalidated);
         }
     }
 
@@ -311,16 +347,17 @@ public sealed partial class MainWindow : Window
             release.Manifest.SupportedBuildIds);
         if (!string.Equals(installation.StateFlags, "4", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                $"A Steam telepítés nincs kész állapotban (StateFlags={installation.StateFlags}).");
+            throw new UserFacingException(
+                TextKey.ErrorSteamInstallNotReady,
+                installation.StateFlags);
         }
         if (!validation.IsValid)
         {
-            throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
+            throw new UserFacingException(TextKey.ErrorGameValidationFailed);
         }
 
         _selectedInstallation = installation;
-        await SaveSettingsAsync(installation.GameRoot);
+        await SaveCurrentSettingsAsync(installation.GameRoot);
         return (installation, release, productVersion);
     }
 
@@ -342,9 +379,8 @@ public sealed partial class MainWindow : Window
                 Path.GetFullPath(installation.GameRoot),
                 normalizedGameRoot,
                 StringComparison.Ordinal));
-        return match ?? throw new InvalidOperationException(
-            "A kiválasztott mappához nem található érvényes appmanifest_387990.acf. " +
-            "A Scrap Mechanic Steam telepítési gyökérmappáját add meg.");
+        return match ?? throw new UserFacingException(
+            TextKey.ErrorInvalidAppManifestForSelectedFolder);
     }
 
     private void ShowLocalGameStatus()
@@ -364,9 +400,14 @@ public sealed partial class MainWindow : Window
             version,
             _selectedInstallation.BuildId,
             [_selectedInstallation.BuildId]);
-        _gameStatus.Text = validation.IsValid
-            ? $"Játék: Scrap Mechanic {version} · Steam build {_selectedInstallation.BuildId}"
-            : "Játék: " + string.Join(" | ", validation.Errors);
+        if (validation.IsValid)
+        {
+            SetGameStatus(TextKey.GameStatusReady, version, _selectedInstallation.BuildId);
+        }
+        else
+        {
+            SetGameStatus(TextKey.GameStatusInvalid);
+        }
     }
 
     private void LaunchGame()
@@ -375,7 +416,7 @@ public sealed partial class MainWindow : Window
         var platformService = new LinuxGamePlatformService(
             LinuxGamePlatformService.IsFlatpakSteamRoot(installation.LibraryRoot));
         platformService.LaunchGame(_devMode.IsChecked == true);
-        Log($"Játékindítás kérése: {installation.GameRoot}");
+        Log(TextKey.LogLaunchRequested, installation.GameRoot);
     }
 
     private void EnsureGameIsNotRunning()
@@ -386,8 +427,7 @@ public sealed partial class MainWindow : Window
         var platformService = new LinuxGamePlatformService(flatpak);
         if (platformService.IsGameRunning())
         {
-            throw new InvalidOperationException(
-                "A Scrap Mechanic fut. Zárd be a játékot telepítés vagy restore előtt.");
+            throw new UserFacingException(TextKey.ErrorGameRunning);
         }
     }
 
@@ -395,7 +435,7 @@ public sealed partial class MainWindow : Window
     {
         if (!ModManifest.IsSafeRelativePath(relativePath))
         {
-            throw new InvalidDataException($"Nem biztonságos manifest target: {relativePath}");
+            throw new UserFacingException(TextKey.ErrorUnsafeManifestTarget, relativePath);
         }
 
         string root = Path.GetFullPath(gameRoot) + Path.DirectorySeparatorChar;
@@ -404,8 +444,9 @@ public sealed partial class MainWindow : Window
             relativePath.Replace('/', Path.DirectorySeparatorChar)));
         if (!target.StartsWith(root, StringComparison.Ordinal))
         {
-            throw new InvalidDataException(
-                $"A manifest target kilép a game rootból: {relativePath}");
+            throw new UserFacingException(
+                TextKey.ErrorManifestTargetEscapesGameRoot,
+                relativePath);
         }
         return target;
     }
@@ -415,7 +456,7 @@ public sealed partial class MainWindow : Window
         string value = _gameRoot.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new InvalidOperationException("Add meg a Scrap Mechanic útvonalát.");
+            throw new UserFacingException(TextKey.ErrorMissingGameRoot);
         }
         return value;
     }
@@ -429,17 +470,35 @@ public sealed partial class MainWindow : Window
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
-            Log("A művelet megszakítva.");
+            Log(TextKey.LogOperationCanceled);
         }
         catch (Exception error)
         {
-            Log("HIBA: " + error.Message);
-            await ShowMessageAsync("Scrap Mechanic Mod Manager", error.Message);
+            string message = GetUserFacingError(error);
+            Log(TextKey.LogError, message);
+            await ShowMessageAsync(TextKey.DialogErrorTitle, message);
         }
         finally
         {
             SetBusy(false);
         }
+    }
+
+    private string GetUserFacingError(Exception error)
+    {
+        if (error is UserFacingException userFacing)
+        {
+            return userFacing.UserMessage.Render(_localizer);
+        }
+        if (error is UnauthorizedAccessException)
+        {
+            return _localizer.Get(TextKey.ErrorPermissionDenied);
+        }
+        if (error is HttpRequestException)
+        {
+            return _localizer.Get(TextKey.ErrorLatestReleaseUnavailable);
+        }
+        return _localizer.Get(TextKey.ErrorOperationFailed);
     }
 
     private void SetBusy(bool busy)
@@ -450,26 +509,132 @@ public sealed partial class MainWindow : Window
         _install.IsEnabled = !busy;
         _restore.IsEnabled = !busy;
         _launch.IsEnabled = !busy;
+        _languageSelector.IsEnabled = !busy;
     }
 
-    private void Log(string message)
+    private async Task OnLanguageChangedAsync()
     {
-        string line = $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
-        _log.Text = (_log.Text ?? string.Empty) + line;
+        if (_applyingLanguage || _languageSelector.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        AppLanguage language = _languageSelector.SelectedIndex == 1
+            ? AppLanguage.English
+            : AppLanguage.Hungarian;
+        if (_localizer.Language == language)
+        {
+            return;
+        }
+
+        _localizer.Language = language;
+        ApplyLocalizedText();
+        string languageName = _localizer.Get(
+            language == AppLanguage.English
+                ? TextKey.LanguageEnglish
+                : TextKey.LanguageHungarian);
+        Log(TextKey.LogLanguageChanged, languageName);
+        await SaveCurrentSettingsAsync();
+    }
+
+    private void ApplyLocalizedText()
+    {
+        Title = _localizer.Get(TextKey.AppTitle);
+        _header.Text = _localizer.Get(TextKey.AppHeader);
+        _subtitle.Text = _localizer.Get(TextKey.AppSubtitleLinux);
+        _gameRootLabel.Text = _localizer.Get(TextKey.GameRootLabel);
+        _gameRoot.Watermark = _localizer.Get(TextKey.GameRootWatermarkLinux);
+        _browse.Content = _localizer.Get(TextKey.ButtonBrowse);
+        _check.Content = _localizer.Get(TextKey.ButtonCheck);
+        _install.Content = _localizer.Get(TextKey.ButtonInstallUpdate);
+        _restore.Content = _localizer.Get(TextKey.ButtonRestore);
+        _launch.Content = _localizer.Get(TextKey.ButtonLaunchGame);
+        _devMode.Content = _localizer.Get(TextKey.CheckBoxDevMode);
+        _languageLabel.Text = _localizer.Get(TextKey.LanguageLabel);
+        _footer.Text = _localizer.Get(TextKey.LinuxPreviewFooter);
+
+        _applyingLanguage = true;
+        try
+        {
+            _languageSelector.ItemsSource = new[]
+            {
+                _localizer.Get(TextKey.LanguageHungarian),
+                _localizer.Get(TextKey.LanguageEnglish),
+            };
+            _languageSelector.SelectedIndex = _localizer.Language == AppLanguage.English ? 1 : 0;
+        }
+        finally
+        {
+            _applyingLanguage = false;
+        }
+
+        RenderLocalizedState();
+    }
+
+    private void RenderLocalizedState()
+    {
+        _gameStatus.Text = _gameStatusMessage.Render(_localizer);
+        _modStatus.Text = _modStatusMessage.Render(_localizer);
+        RenderLog();
+    }
+
+    private void SetGameStatus(TextKey key, params object?[] arguments)
+    {
+        _gameStatusMessage = new LocalizedMessage(key, arguments);
+        _gameStatus.Text = _gameStatusMessage.Render(_localizer);
+    }
+
+    private void SetModStatus(TextKey key, params object?[] arguments)
+    {
+        _modStatusMessage = new LocalizedMessage(key, arguments);
+        _modStatus.Text = _modStatusMessage.Render(_localizer);
+    }
+
+    private void Log(TextKey key, params object?[] arguments)
+    {
+        _logMessages.Add(new LocalizedMessage(key, arguments));
+        _logTimestamps.Add(DateTime.Now);
+        RenderLog();
+    }
+
+    private void RenderLog()
+    {
+        var text = new StringBuilder();
+        for (int index = 0; index < _logMessages.Count; index++)
+        {
+            text.Append('[')
+                .Append(_logTimestamps[index].ToString("HH:mm:ss"))
+                .Append("] ")
+                .AppendLine(_logMessages[index].Render(_localizer));
+        }
+        _log.Text = text.ToString();
         _log.CaretIndex = _log.Text.Length;
     }
 
-    private async Task ShowMessageAsync(string title, string message)
+    private async Task SaveCurrentSettingsAsync(string? gameRoot = null)
+    {
+        string? currentRoot = gameRoot;
+        if (string.IsNullOrWhiteSpace(currentRoot))
+        {
+            currentRoot = string.IsNullOrWhiteSpace(_gameRoot.Text)
+                ? _settings.GameRoot
+                : _gameRoot.Text.Trim();
+        }
+        _settings = new ManagerSettings(currentRoot, _localizer.Language);
+        await _settingsStore.SaveAsync(_settings, _lifetimeCancellation.Token);
+    }
+
+    private async Task ShowMessageAsync(TextKey titleKey, string message)
     {
         var closeButton = new Button
         {
-            Content = "OK",
+            Content = _localizer.Get(TextKey.DialogButtonOk),
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             MinWidth = 90,
         };
         var dialog = new Window
         {
-            Title = title,
+            Title = _localizer.Get(titleKey),
             Width = 520,
             SizeToContent = SizeToContent.Height,
             CanResize = false,
@@ -493,13 +658,25 @@ public sealed partial class MainWindow : Window
         await dialog.ShowDialog(this);
     }
 
-    private async Task<bool> ShowConfirmationAsync(string title, string message)
+    private async Task<bool> ShowConfirmationAsync(
+        TextKey titleKey,
+        TextKey messageKey,
+        TextKey confirmButtonKey,
+        params object?[] arguments)
     {
-        var confirmButton = new Button { Content = "Visszaállítás", MinWidth = 110 };
-        var cancelButton = new Button { Content = "Mégse", MinWidth = 90 };
+        var confirmButton = new Button
+        {
+            Content = _localizer.Get(confirmButtonKey),
+            MinWidth = 110,
+        };
+        var cancelButton = new Button
+        {
+            Content = _localizer.Get(TextKey.DialogButtonCancel),
+            MinWidth = 90,
+        };
         var dialog = new Window
         {
-            Title = title,
+            Title = _localizer.Get(titleKey),
             Width = 560,
             SizeToContent = SizeToContent.Height,
             CanResize = false,
@@ -515,7 +692,7 @@ public sealed partial class MainWindow : Window
             {
                 new TextBlock
                 {
-                    Text = message,
+                    Text = _localizer.Get(messageKey, arguments),
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 },
                 new StackPanel
@@ -530,36 +707,8 @@ public sealed partial class MainWindow : Window
         return await dialog.ShowDialog<bool>(this);
     }
 
-    private static async Task<ManagerSettings?> LoadSettingsAsync()
+    private sealed class UserFacingException(TextKey key, params object?[] arguments) : Exception
     {
-        if (!File.Exists(SettingsPath))
-        {
-            return null;
-        }
-        try
-        {
-            return JsonSerializer.Deserialize<ManagerSettings>(
-                await File.ReadAllTextAsync(SettingsPath));
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (IOException)
-        {
-            return null;
-        }
+        public LocalizedMessage UserMessage { get; } = new(key, arguments);
     }
-
-    private static async Task SaveSettingsAsync(string gameRoot)
-    {
-        Directory.CreateDirectory(AppDataRoot);
-        await File.WriteAllTextAsync(
-            SettingsPath,
-            JsonSerializer.Serialize(
-                new ManagerSettings(gameRoot),
-                new JsonSerializerOptions { WriteIndented = true }));
-    }
-
-    private sealed record ManagerSettings(string GameRoot);
 }
