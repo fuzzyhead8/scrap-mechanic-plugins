@@ -400,6 +400,22 @@ public sealed class MainForm : Form
         }
     }
 
+    private string ReadProductVersionForUser(string executable)
+    {
+        try
+        {
+            return _versionReader.ReadProductVersion(executable);
+        }
+        catch (FileNotFoundException)
+        {
+            throw new UserFacingException(TextKey.ErrorGameExecutableMissing, executable);
+        }
+        catch (InvalidDataException)
+        {
+            throw new UserFacingException(TextKey.ErrorGameVersionUnavailable, executable);
+        }
+    }
+
     private async Task<(SteamInstallation Installation, ResolvedRelease Release, string ProductVersion)>
         ResolveAndValidateLatestAsync()
     {
@@ -407,7 +423,7 @@ public sealed class MainForm : Form
         ResolvedRelease release = await _releaseClient.GetLatestReleaseAsync(
             _lifetimeCancellation.Token);
         string executable = Path.Combine(installation.GameRoot, "Release", "ScrapMechanic.exe");
-        string productVersion = _versionReader.ReadProductVersion(executable);
+        string productVersion = ReadProductVersionForUser(executable);
         GameInstallValidationResult validation = _gameValidator.Validate(
             installation.GameRoot,
             productVersion,
@@ -431,7 +447,7 @@ public sealed class MainForm : Form
 
     private SteamInstallation ResolveSelectedInstallation(string gameRoot)
     {
-        string normalizedGameRoot = Path.GetFullPath(gameRoot.Trim());
+        string normalizedGameRoot = SteamPathIdentity.Normalize(gameRoot);
         var roots = new HashSet<string>(
             _steamRootDiscovery.FindCandidateRoots(),
             StringComparer.OrdinalIgnoreCase);
@@ -440,10 +456,9 @@ public sealed class MainForm : Form
 
         SteamInstallation? match = roots
             .SelectMany(root => _steamLibraryLocator.FindInstallations(root))
-            .FirstOrDefault(installation => string.Equals(
-                Path.GetFullPath(installation.GameRoot),
-                normalizedGameRoot,
-                StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(installation => SteamPathIdentity.AreEquivalent(
+                installation.GameRoot,
+                normalizedGameRoot));
         return match ?? throw new UserFacingException(
             TextKey.ErrorInvalidAppManifestForSelectedFolder);
     }
@@ -455,7 +470,7 @@ public sealed class MainForm : Form
             _selectedInstallation.GameRoot,
             "Release",
             "ScrapMechanic.exe");
-        string version = _versionReader.ReadProductVersion(executable);
+        string version = ReadProductVersionForUser(executable);
         GameInstallValidationResult validation = _gameValidator.Validate(
             _selectedInstallation.GameRoot,
             version,
@@ -606,7 +621,7 @@ public sealed class MainForm : Form
         {
             return _localizer.Get(TextKey.ErrorLatestReleaseUnavailable);
         }
-        return _localizer.Get(TextKey.ErrorOperationFailed);
+        return _localizer.Get(TextKey.ErrorOperationFailed, error.GetType().Name);
     }
 
     private void SetBusy(bool busy)

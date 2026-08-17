@@ -12,15 +12,19 @@ public sealed partial class SteamLibraryLocator
             return [];
         }
 
+        string normalizedSteamRoot = SteamPathIdentity.Normalize(steamRoot);
         var libraryRoots = new HashSet<string>(
             OperatingSystem.IsWindows()
                 ? StringComparer.OrdinalIgnoreCase
                 : StringComparer.Ordinal)
         {
-            Path.GetFullPath(steamRoot),
+            normalizedSteamRoot,
         };
 
-        string libraryFoldersPath = Path.Combine(steamRoot, "steamapps", "libraryfolders.vdf");
+        string libraryFoldersPath = Path.Combine(
+            normalizedSteamRoot,
+            "steamapps",
+            "libraryfolders.vdf");
         if (File.Exists(libraryFoldersPath))
         {
             string content = File.ReadAllText(libraryFoldersPath);
@@ -29,7 +33,7 @@ public sealed partial class SteamLibraryLocator
                 string decodedPath = match.Groups[1].Value.Replace("\\\\", "\\");
                 if (Directory.Exists(decodedPath))
                 {
-                    libraryRoots.Add(Path.GetFullPath(decodedPath));
+                    libraryRoots.Add(SteamPathIdentity.Normalize(decodedPath));
                 }
             }
         }
@@ -72,7 +76,7 @@ public sealed partial class SteamLibraryLocator
             return null;
         }
 
-        string gameRoot = Path.GetFullPath(
+        string gameRoot = SteamPathIdentity.Normalize(
             Path.Combine(libraryRoot, "steamapps", "common", installDirectory));
         if (!Directory.Exists(gameRoot))
         {
@@ -85,9 +89,9 @@ public sealed partial class SteamLibraryLocator
             ReadValue(content, "buildid"),
             ReadValue(content, "StateFlags"),
             installDirectory,
-            Path.GetFullPath(libraryRoot),
+            SteamPathIdentity.Normalize(libraryRoot),
             gameRoot,
-            Path.GetFullPath(manifestPath));
+            SteamPathIdentity.Normalize(manifestPath));
     }
 
     private static string ReadValue(string content, string key)

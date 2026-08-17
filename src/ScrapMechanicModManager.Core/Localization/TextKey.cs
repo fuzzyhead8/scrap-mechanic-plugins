@@ -70,4 +70,6 @@ public enum TextKey
     ErrorPermissionDenied,
     ErrorOperationFailed,
     ErrorGameValidationFailed,
+    ErrorGameExecutableMissing,
+    ErrorGameVersionUnavailable,
 }

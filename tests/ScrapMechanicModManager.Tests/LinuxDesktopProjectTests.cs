@@ -62,6 +62,23 @@ public sealed class LinuxDesktopProjectTests
         Assert.DoesNotContain("GetAwaiter().GetResult()", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Avalonia_reports_precise_executable_version_failures()
+    {
+        string code = File.ReadAllText(Path.Combine(
+            FindRepoRoot(),
+            "src",
+            "ScrapMechanicModManager.Desktop",
+            "MainWindow.axaml.cs"));
+
+        Assert.Contains("ReadProductVersionForUser", code, StringComparison.Ordinal);
+        Assert.Contains("catch (FileNotFoundException)", code, StringComparison.Ordinal);
+        Assert.Contains("TextKey.ErrorGameExecutableMissing", code, StringComparison.Ordinal);
+        Assert.Contains("catch (InvalidDataException)", code, StringComparison.Ordinal);
+        Assert.Contains("TextKey.ErrorGameVersionUnavailable", code, StringComparison.Ordinal);
+        Assert.Contains("error.GetType().Name", code, StringComparison.Ordinal);
+    }
+
     private static string FindRepoRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

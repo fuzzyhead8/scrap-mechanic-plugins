@@ -76,8 +76,10 @@ public sealed class AppLocalizer
                 (TextKey.ErrorLatestReleaseUnavailable, "A legfrissebb kiadás nem érhető el. Ellenőrizd a hálózati kapcsolatot és próbáld újra."),
                 (TextKey.ErrorPayloadDownloadFailed, "A payload letöltése sikertelen. Ellenőrizd a hálózati kapcsolatot és próbáld újra."),
                 (TextKey.ErrorPermissionDenied, "Nincs jogosultság a művelet végrehajtásához."),
-                (TextKey.ErrorOperationFailed, "A művelet nem sikerült."),
-                (TextKey.ErrorGameValidationFailed, "A Scrap Mechanic telepítés ellenőrzése sikertelen.")),
+                (TextKey.ErrorOperationFailed, "A művelet nem sikerült. Technikai hibakód: {0}."),
+                (TextKey.ErrorGameValidationFailed, "A Scrap Mechanic telepítés ellenőrzése sikertelen."),
+                (TextKey.ErrorGameExecutableMissing, "A ScrapMechanic.exe nem található: {0}"),
+                (TextKey.ErrorGameVersionUnavailable, "A játék ProductVersion értéke nem olvasható: {0}")),
             [AppLanguage.English] = CreateTranslations(
                 (TextKey.AppTitle, "Scrap Mechanic Mod Manager"),
                 (TextKey.AppHeader, "Scrap Mechanic Mod Manager"),
@@ -145,8 +147,10 @@ public sealed class AppLocalizer
                 (TextKey.ErrorLatestReleaseUnavailable, "The latest release is unavailable. Check the network connection and try again."),
                 (TextKey.ErrorPayloadDownloadFailed, "Payload download failed. Check the network connection and try again."),
                 (TextKey.ErrorPermissionDenied, "Permission denied for this operation."),
-                (TextKey.ErrorOperationFailed, "The operation failed."),
-                (TextKey.ErrorGameValidationFailed, "Scrap Mechanic installation validation failed.")),
+                (TextKey.ErrorOperationFailed, "The operation failed. Technical error code: {0}."),
+                (TextKey.ErrorGameValidationFailed, "Scrap Mechanic installation validation failed."),
+                (TextKey.ErrorGameExecutableMissing, "ScrapMechanic.exe was not found: {0}"),
+                (TextKey.ErrorGameVersionUnavailable, "The game ProductVersion could not be read: {0}")),
         };
 
     private AppLanguage _language = DefaultLanguage;

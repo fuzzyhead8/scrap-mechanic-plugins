@@ -72,6 +72,20 @@ public sealed class AppLocalizerTests
     }
 
     [Fact]
+    public void Unexpected_failure_keeps_a_localized_message_and_a_technical_code()
+    {
+        var hungarian = new AppLocalizer(AppLanguage.Hungarian);
+        var english = new AppLocalizer(AppLanguage.English);
+
+        Assert.Contains(
+            "InvalidDataException",
+            hungarian.Get(TextKey.ErrorOperationFailed, "InvalidDataException"));
+        Assert.Contains(
+            "InvalidDataException",
+            english.Get(TextKey.ErrorOperationFailed, "InvalidDataException"));
+    }
+
+    [Fact]
     public void Every_text_key_has_nonempty_Hungarian_and_English_translation()
     {
         foreach (TextKey key in Enum.GetValues<TextKey>())
