@@ -96,7 +96,7 @@ public sealed partial class MainWindow : Window
             RepositoryOwner,
             RepositoryName);
         string appVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
-            ?? "0.2.0-preview.4";
+            ?? "0.2.0-preview.5";
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", appVersion));
 
