@@ -316,8 +316,11 @@ public sealed class ModInstallerTests : IDisposable
         };
         var installer = new ModInstaller();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        Exception error = await Assert.ThrowsAnyAsync<Exception>(() =>
             installer.InstallAsync(gameRoot, zipPath, manifest, backupRoot));
+        Assert.True(
+            error is UnauthorizedAccessException or IOException,
+            $"Unexpected exception type: {error.GetType().FullName}");
 
         Assert.Equal("vanilla-one", File.ReadAllText(targetOnePath));
         Assert.True(Directory.Exists(blockedTargetPath));

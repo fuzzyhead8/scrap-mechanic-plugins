@@ -16,16 +16,31 @@ public sealed class ReleasePayloadScriptTests : IDisposable
     {
         string repoRoot = FindRepoRoot();
         string script = Path.Combine(repoRoot, "scripts", "New-ReleasePayload.ps1");
-        var startInfo = new ProcessStartInfo(
-            "powershell",
-            $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\" " +
-            $"-Version 0.1.0 -BuildIds 24529696 -OutputDirectory \"{_output}\"")
+        var startInfo = new ProcessStartInfo
         {
+            FileName = OperatingSystem.IsWindows() ? "powershell.exe" : "pwsh",
             WorkingDirectory = repoRoot,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+        foreach (string argument in new[]
+        {
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script,
+            "-Version",
+            "0.1.0",
+            "-BuildIds",
+            "24529696",
+            "-OutputDirectory",
+            _output,
+        })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         using Process process = Process.Start(startInfo)!;
         await process.WaitForExitAsync();
