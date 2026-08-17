@@ -27,6 +27,18 @@ A .NET 8 WinForms launcher:
 - támogatja a restore-t és a Steam játékindítást;
 - futó játék vagy ismeretlen build esetén nem telepít.
 
+## Linux preview
+
+A separate Avalonia GUI targets `linux-x64` Steam Proton installations while the tested WinForms launcher remains unchanged. It discovers native and Flatpak Steam roots, uses the same validation/install/restore Core, and never invokes `sudo` automatically.
+
+Required Debian/Ubuntu libraries:
+
+```bash
+sudo apt install libx11-6 libice6 libsm6 libfontconfig1
+```
+
+Linux support remains a preview until install, launch, gameplay, cache invalidation, and restore pass on a real Steam Proton system. Portable instructions are included in `distribution/linux/README-Linux.txt`.
+
 ## Fejlesztői parancsok
 
 ```powershell
@@ -36,6 +48,10 @@ dotnet build ScrapMechanicModManager.sln -c Release
 dotnet publish src/ScrapMechanicModManager/ScrapMechanicModManager.csproj `
   -c Release -r win-x64 --self-contained true `
   -p:PublishSingleFile=true -o artifacts/launcher
+
+dotnet publish src/ScrapMechanicModManager.Desktop/ScrapMechanicModManager.Desktop.csproj `
+  -c Release -r linux-x64 --self-contained true `
+  -p:PublishSingleFile=true -o artifacts/linux-publish
 ```
 
 Release assetek létrehozása:
@@ -51,7 +67,7 @@ Release assetek létrehozása:
 1. A módosított fájlokat játékban tesztelni kell.
 2. Szükség esetén frissíteni kell a `distribution/supported-builds.txt` fájlt.
 3. Verziótag létrehozása, például `v0.1.3`.
-4. A `.github/workflows/release.yml` elkészíti a single-file launchert, `manifest.json` fájlt és a payload ZIP-et.
+4. A `.github/workflows/release.yml` elkészíti a Windows EXE-t, a Linux `tar.gz` launchert, a `manifest.json` fájlt és a payload ZIP-et.
 5. A kliensek a GitHub latest release API-jából kapják a frissítést.
 
 > [!NOTE]

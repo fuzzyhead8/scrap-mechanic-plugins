@@ -1,0 +1,111 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="960"
+        d:DesignHeight="680"
+        x:Class="ScrapMechanicModManager.Desktop.MainWindow"
+        Title="Scrap Mechanic Mod Manager"
+        Icon="avares://ScrapMechanicModManager/Assets/ScrapMechanicModManager.png"
+        Width="960"
+        Height="680"
+        MinWidth="780"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+  <Window.Styles>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="16,9" />
+      <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="14">
+    <StackPanel Grid.Row="0" Spacing="3">
+      <TextBlock Text="Scrap Mechanic Mod Manager"
+                 FontSize="28"
+                 FontWeight="Bold" />
+      <TextBlock Text="Közös Survival Lua fájlok biztonságos telepítése és frissítése Linuxon, Steam Proton alatt"
+                 Opacity="0.72" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+      <TextBlock Grid.Column="0"
+                 Text="Scrap Mechanic mappa:"
+                 VerticalAlignment="Center"
+                 Classes="sectionTitle" />
+      <TextBox Grid.Column="1"
+               x:Name="GameRootTextBox"
+               Watermark="~/.local/share/Steam/steamapps/common/Scrap Mechanic" />
+      <Button Grid.Column="2"
+              x:Name="BrowseButton"
+              Content="Tallózás…"
+              Click="OnBrowseClick" />
+    </Grid>
+
+    <Border Grid.Row="2"
+            Padding="14"
+            CornerRadius="8"
+            Background="#12000000"
+            BorderBrush="#26000000"
+            BorderThickness="1">
+      <StackPanel Spacing="6">
+        <TextBlock x:Name="GameStatusText"
+                   Text="Játék: nincs ellenőrizve" />
+        <TextBlock x:Name="ModStatusText"
+                   Text="Mod: nincs ellenőrizve" />
+      </StackPanel>
+    </Border>
+
+    <StackPanel Grid.Row="3"
+                Orientation="Horizontal"
+                Spacing="9">
+      <Button x:Name="CheckButton"
+              Content="Ellenőrzés"
+              Click="OnCheckClick" />
+      <Button x:Name="InstallButton"
+              Content="Telepítés / frissítés"
+              Click="OnInstallClick" />
+      <Button x:Name="RestoreButton"
+              Content="Visszaállítás"
+              Click="OnRestoreClick" />
+      <Button x:Name="LaunchButton"
+              Content="Játék indítása"
+              Click="OnLaunchClick" />
+      <CheckBox x:Name="DevModeCheckBox"
+                Content="Indítás -dev módban"
+                VerticalAlignment="Center" />
+    </StackPanel>
+
+    <ProgressBar Grid.Row="4"
+                 x:Name="ProgressBar"
+                 IsIndeterminate="True"
+                 IsVisible="False"
+                 Height="4" />
+
+    <TextBox Grid.Row="5"
+             x:Name="LogTextBox"
+             AcceptsReturn="True"
+             IsReadOnly="True"
+             TextWrapping="NoWrap"
+             FontFamily="monospace"
+             FontSize="13"
+             Background="#1C1F24"
+             Foreground="#E5E9EC"
+             BorderBrush="#343A40"
+             BorderThickness="1"
+             Padding="10"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+
+    <TextBlock Grid.Row="6"
+               Text="Linux preview · X11/XWayland · Steam Proton"
+               HorizontalAlignment="Right"
+               Opacity="0.55"
+               FontSize="12" />
+  </Grid>
+</Window>

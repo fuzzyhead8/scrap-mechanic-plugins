@@ -4,12 +4,43 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test complete Windows solution
+        if: runner.os == 'Windows'
+        run: dotnet test ScrapMechanicModManager.sln -c Release
+
+      - name: Test shared Core on Linux
+        if: runner.os == 'Linux'
+        run: dotnet test tests/ScrapMechanicModManager.Tests/ScrapMechanicModManager.Tests.csproj -c Release
+
+      - name: Build Avalonia Linux frontend
+        if: runner.os == 'Linux'
+        run: dotnet build src/ScrapMechanicModManager.Desktop/ScrapMechanicModManager.Desktop.csproj -c Release
+
+  build-windows:
+    needs: verify
     runs-on: windows-latest
 
     steps:
@@ -21,17 +52,79 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Test
-        run: dotnet test ScrapMechanicModManager.sln -c Release
-
-      - name: Publish single-file launcher
+      - name: Publish Windows launcher
         run: >-
           dotnet publish src/ScrapMechanicModManager/ScrapMechanicModManager.csproj
           -c Release
           -r win-x64
           --self-contained true
           -p:PublishSingleFile=true
-          -o artifacts/launcher
+          -o artifacts/windows
+
+      - name: Upload Windows launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-launcher
+          path: artifacts/windows/ScrapMechanicModManager.exe
+          if-no-files-found: error
+
+  build-linux:
+    needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish self-contained Avalonia launcher
+        run: >-
+          dotnet publish src/ScrapMechanicModManager.Desktop/ScrapMechanicModManager.Desktop.csproj
+          -c Release
+          -r linux-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o artifacts/linux-publish
+
+      - name: Build Linux release archive
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") {
+            "${{ github.ref_name }}".TrimStart('v')
+          } else {
+            "0.0.0-ci"
+          }
+          ./scripts/New-LinuxReleasePackage.ps1 `
+            -Version $version `
+            -PublishDirectory artifacts/linux-publish `
+            -OutputDirectory artifacts/linux-release
+
+      - name: Upload Linux launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-launcher
+          path: artifacts/linux-release/ScrapMechanicModManager-linux-x64.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-linux]
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download launcher artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/download
 
       - name: Build release manifest and payload
         shell: pwsh
@@ -41,17 +134,13 @@ jobs:
             -Version $version `
             -OutputDirectory artifacts/release
 
-      - name: Stage release assets
-        shell: pwsh
-        run: |
-          Copy-Item artifacts/launcher/ScrapMechanicModManager.exe artifacts/release/ScrapMechanicModManager.exe
-          Get-ChildItem artifacts/release | Format-Table Name, Length
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
-            artifacts/release/ScrapMechanicModManager.exe
+            artifacts/download/windows-launcher/ScrapMechanicModManager.exe
+            artifacts/download/linux-launcher/ScrapMechanicModManager-linux-x64.tar.gz
             artifacts/release/manifest.json
             artifacts/release/robots_01.zip

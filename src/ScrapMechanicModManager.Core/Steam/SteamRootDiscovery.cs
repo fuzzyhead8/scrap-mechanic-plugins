@@ -4,7 +4,7 @@ using Microsoft.Win32;
 namespace ScrapMechanicModManager.Core.Steam;
 
 [SupportedOSPlatform("windows")]
-public sealed class SteamRootDiscovery
+public sealed class SteamRootDiscovery : ISteamRootDiscovery
 {
     public IReadOnlyList<string> FindCandidateRoots()
     {

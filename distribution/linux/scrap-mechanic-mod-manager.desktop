@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Scrap Mechanic Mod Manager
+Comment=Safely install and update shared Scrap Mechanic Survival Lua files
+Exec=scrap-mechanic-mod-manager
+Icon=ScrapMechanicModManager
+Terminal=false
+Categories=Game;Utility;
+StartupNotify=true

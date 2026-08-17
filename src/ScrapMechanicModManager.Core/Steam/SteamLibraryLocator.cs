@@ -12,7 +12,10 @@ public sealed partial class SteamLibraryLocator
             return [];
         }
 
-        var libraryRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var libraryRoots = new HashSet<string>(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal)
         {
             Path.GetFullPath(steamRoot),
         };

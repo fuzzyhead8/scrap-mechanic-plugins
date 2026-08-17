@@ -276,7 +276,10 @@ public sealed class ModInstaller(HashService? hashService = null)
         CancellationToken cancellationToken)
     {
         using ZipArchive archive = ZipFile.OpenRead(payloadZipPath);
-        var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+        var entries = new Dictionary<string, ZipArchiveEntry>(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
             string normalized = entry.FullName.Replace('\\', '/').TrimEnd('/');
@@ -363,7 +366,10 @@ public sealed class ModInstaller(HashService? hashService = null)
         string fullRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
         string fullPath = Path.GetFullPath(
             Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+        StringComparison pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!fullPath.StartsWith(fullRoot, pathComparison))
         {
             throw new InvalidDataException($"Az útvonal kilép a célkönyvtárból: {relativePath}");
         }
