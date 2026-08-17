@@ -23,6 +23,7 @@ A .NET 8 WinForms launcher:
 - SHA-256-tal ellenőrzi a ZIP-et és minden telepítendő fájlt;
 - időbélyeges backupot készít felülírás előtt;
 - backup után invalidálja a `Cache/Bundle/core_data.cbo` script-cache-t, így nem kell `-dev` az új Lua fájlok betöltéséhez;
+- saját, többfelbontású Scrap Mechanic-hangulatú alkalmazásikont használ;
 - támogatja a restore-t és a Steam játékindítást;
 - futó játék vagy ismeretlen build esetén nem telepít.
 
@@ -41,7 +42,7 @@ Release assetek létrehozása:
 
 ```powershell
 ./scripts/New-ReleasePayload.ps1 `
-  -Version 0.1.1 `
+  -Version 0.1.2 `
   -OutputDirectory artifacts/release
 ```
 
@@ -49,7 +50,7 @@ Release assetek létrehozása:
 
 1. A módosított fájlokat játékban tesztelni kell.
 2. Szükség esetén frissíteni kell a `distribution/supported-builds.txt` fájlt.
-3. Verziótag létrehozása, például `v0.1.1`.
+3. Verziótag létrehozása, például `v0.1.2`.
 4. A `.github/workflows/release.yml` elkészíti a single-file launchert, `manifest.json` fájlt és a payload ZIP-et.
 5. A kliensek a GitHub latest release API-jából kapják a frissítést.
 
