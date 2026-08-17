@@ -63,7 +63,7 @@ public sealed class MainForm : Form
             RepositoryOwner,
             RepositoryName);
         string appVersion = typeof(MainForm).Assembly.GetName().Version?.ToString(3)
-            ?? "0.1.0";
+            ?? "0.1.1";
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager", appVersion));
 
@@ -293,6 +293,10 @@ public sealed class MainForm : Form
             _modStatus.Text = $"Mod: telepítve ({release.Manifest.Version})";
             Log($"Telepítve: {result.InstalledFileCount} fájl.");
             Log($"Backup: {result.BackupDirectory}");
+            if (result.CacheBundleInvalidated)
+            {
+                Log("A core_data.cbo script-cache backupolva és invalidálva.");
+            }
         }
         finally
         {
@@ -325,12 +329,16 @@ public sealed class MainForm : Form
             MessageBoxIcon.Warning);
         if (answer != DialogResult.Yes) return;
 
-        await _installer.RestoreAsync(
+        bool cacheBundleInvalidated = await _installer.RestoreAsync(
             installation.GameRoot,
             latestSnapshot,
             _lifetimeCancellation.Token);
         _modStatus.Text = "Mod: backup visszaállítva";
         Log($"Backup visszaállítva: {latestSnapshot}");
+        if (cacheBundleInvalidated)
+        {
+            Log("A core_data.cbo script-cache backupolva és invalidálva.");
+        }
     }
 
     private async Task<(SteamInstallation Installation, ResolvedRelease Release, string ProductVersion)>

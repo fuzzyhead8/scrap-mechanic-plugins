@@ -5,10 +5,14 @@ using ScrapMechanicModManager.Core.Updates;
 
 namespace ScrapMechanicModManager.Core.Installation;
 
-public sealed record InstallResult(string BackupDirectory, int InstalledFileCount);
+public sealed record InstallResult(
+    string BackupDirectory,
+    int InstalledFileCount,
+    bool CacheBundleInvalidated);
 
 public sealed class ModInstaller(HashService? hashService = null)
 {
+    private const string CoreDataBundleRelativePath = "Cache/Bundle/core_data.cbo";
     private readonly HashService _hashService = hashService ?? new HashService();
 
     public async Task<InstallResult> InstallAsync(
@@ -23,6 +27,11 @@ public sealed class ModInstaller(HashService? hashService = null)
         {
             throw new InvalidDataException(
                 "A release manifest hibás: " + string.Join("; ", manifestErrors));
+        }
+        if (manifest.Files.Any(file => TargetsGeneratedCacheDirectory(file.Target)))
+        {
+            throw new InvalidDataException(
+                "A generált Cache könyvtár nem lehet payload cél.");
         }
         if (!Directory.Exists(gameRoot))
         {
@@ -62,6 +71,7 @@ public sealed class ModInstaller(HashService? hashService = null)
 
             var touchedTargets = new List<(string Target, string? Backup)>();
             var snapshotFiles = new List<SnapshotFile>();
+            bool cacheBundleInvalidated;
             try
             {
                 foreach (ModFileEntry file in manifest.Files)
@@ -79,6 +89,11 @@ public sealed class ModInstaller(HashService? hashService = null)
                     touchedTargets.Add((targetPath, backupPath));
                     snapshotFiles.Add(new SnapshotFile(file.Target, hadOriginal));
                 }
+
+                string? cacheBundlePath = BackupCoreDataBundle(
+                    gameRoot,
+                    snapshotRoot,
+                    CoreDataBundleRelativePath);
 
                 await File.WriteAllTextAsync(
                     Path.Combine(snapshotRoot, ".snapshot.json"),
@@ -102,6 +117,8 @@ public sealed class ModInstaller(HashService? hashService = null)
                         if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
                     }
                 }
+
+                cacheBundleInvalidated = InvalidateCoreDataBundle(cacheBundlePath);
             }
             catch
             {
@@ -120,7 +137,10 @@ public sealed class ModInstaller(HashService? hashService = null)
                 throw;
             }
 
-            return new InstallResult(snapshotRoot, manifest.Files.Count);
+            return new InstallResult(
+                snapshotRoot,
+                manifest.Files.Count,
+                cacheBundleInvalidated);
         }
         finally
         {
@@ -131,7 +151,7 @@ public sealed class ModInstaller(HashService? hashService = null)
         }
     }
 
-    public async Task RestoreAsync(
+    public async Task<bool> RestoreAsync(
         string gameRoot,
         string snapshotDirectory,
         CancellationToken cancellationToken = default)
@@ -173,6 +193,7 @@ public sealed class ModInstaller(HashService? hashService = null)
             ".smmm-restore-rollback-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(rollbackRoot);
         var rollbackFiles = new List<(string Target, string? Rollback, bool HadCurrent)>();
+        bool cacheBundleInvalidated;
         try
         {
             foreach ((SnapshotFile file, string targetPath, _) in restoreFiles)
@@ -188,6 +209,14 @@ public sealed class ModInstaller(HashService? hashService = null)
                 }
                 rollbackFiles.Add((targetPath, rollbackPath, hadCurrent));
             }
+
+            const string cacheBackupRelativePath =
+                ".cache-invalidations/core_data-before-restore.cbo";
+            string? cacheBundlePath = BackupCoreDataBundle(
+                gameRoot,
+                snapshotDirectory,
+                cacheBackupRelativePath,
+                overwrite: true);
 
             foreach ((SnapshotFile file, string targetPath, string? backupPath) in restoreFiles)
             {
@@ -210,6 +239,8 @@ public sealed class ModInstaller(HashService? hashService = null)
                     if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
                 }
             }
+
+            cacheBundleInvalidated = InvalidateCoreDataBundle(cacheBundlePath);
         }
         catch
         {
@@ -234,6 +265,8 @@ public sealed class ModInstaller(HashService? hashService = null)
                 Directory.Delete(rollbackRoot, recursive: true);
             }
         }
+
+        return cacheBundleInvalidated;
     }
 
     private async Task StageAndValidateAsync(
@@ -285,6 +318,39 @@ public sealed class ModInstaller(HashService? hashService = null)
                     $"Fájl SHA-256 eltérés: {file.Source}");
             }
         }
+    }
+
+    private static bool TargetsGeneratedCacheDirectory(string relativePath)
+    {
+        string firstSegment = relativePath
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)[0]
+            .TrimEnd(' ', '.');
+        return string.Equals(firstSegment, "Cache", StringComparison.OrdinalIgnoreCase)
+            || firstSegment.StartsWith("CACHE~", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? BackupCoreDataBundle(
+        string gameRoot,
+        string backupRoot,
+        string backupRelativePath,
+        bool overwrite = false)
+    {
+        string cacheBundlePath = CombineSafe(gameRoot, CoreDataBundleRelativePath);
+        if (!File.Exists(cacheBundlePath)) return null;
+
+        string backupPath = CombineSafe(backupRoot, backupRelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+        File.Copy(cacheBundlePath, backupPath, overwrite);
+        return cacheBundlePath;
+    }
+
+    private static bool InvalidateCoreDataBundle(string? cacheBundlePath)
+    {
+        if (cacheBundlePath is null || !File.Exists(cacheBundlePath)) return false;
+
+        File.Delete(cacheBundlePath);
+        return true;
     }
 
     private static string CombineSafe(string root, string relativePath)

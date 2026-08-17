@@ -30,6 +30,7 @@ public sealed class ModInstallerTests : IDisposable
 
         Assert.Equal("modded", File.ReadAllText(targetPath));
         Assert.Equal(1, result.InstalledFileCount);
+        Assert.False(result.CacheBundleInvalidated);
         string backupPath = Path.Combine(
             result.BackupDirectory,
             targetRelative.Replace('/', Path.DirectorySeparatorChar));
@@ -52,13 +53,220 @@ public sealed class ModInstallerTests : IDisposable
             manifest,
             backupRoot);
 
-        var method = typeof(ModInstaller).GetMethod("RestoreAsync");
-        Assert.NotNull(method);
-        var restoreTask = Assert.IsAssignableFrom<Task>(
-            method.Invoke(installer, [gameRoot, install.BackupDirectory, CancellationToken.None]));
-        await restoreTask;
+        bool cacheBundleInvalidated = await installer.RestoreAsync(
+            gameRoot,
+            install.BackupDirectory);
 
         Assert.Equal("vanilla", File.ReadAllText(targetPath));
+        Assert.False(cacheBundleInvalidated);
+    }
+
+    [Fact]
+    public async Task Install_backs_up_and_invalidates_the_core_data_bundle()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "stale-cache");
+        (string zipPath, ModManifest manifest) = CreatePayload("modded", targetRelative);
+        var installer = new ModInstaller();
+
+        InstallResult result = await installer.InstallAsync(
+            gameRoot,
+            zipPath,
+            manifest,
+            backupRoot);
+
+        Assert.True(result.CacheBundleInvalidated);
+        Assert.False(File.Exists(cachePath));
+        string cacheBackupPath = Path.Combine(
+            result.BackupDirectory,
+            "Cache",
+            "Bundle",
+            "core_data.cbo");
+        Assert.Equal("stale-cache", File.ReadAllText(cacheBackupPath));
+    }
+
+    [Theory]
+    [InlineData("Cache/Bundle/core_data.cbo")]
+    [InlineData("Cache//Bundle/core_data.cbo")]
+    [InlineData("Cache./Bundle/core_data.cbo")]
+    [InlineData("CACHE~1/Bundle/core_data.cbo")]
+    [InlineData("Cache/Anything.bin")]
+    public async Task Install_rejects_manifest_targets_inside_the_generated_cache_directory(
+        string reservedTarget)
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "stale-cache");
+        (string zipPath, ModManifest manifest) = CreatePayload(
+            "payload-cache",
+            reservedTarget);
+        var installer = new ModInstaller();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            installer.InstallAsync(gameRoot, zipPath, manifest, backupRoot));
+
+        Assert.Contains("Cache", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("stale-cache", File.ReadAllText(cachePath));
+    }
+
+    [Fact]
+    public async Task Restore_backs_up_and_invalidates_the_rebuilt_core_data_bundle()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        CreateFile(gameRoot, targetRelative, "vanilla");
+        (string zipPath, ModManifest manifest) = CreatePayload("modded", targetRelative);
+        var installer = new ModInstaller();
+        InstallResult install = await installer.InstallAsync(
+            gameRoot,
+            zipPath,
+            manifest,
+            backupRoot);
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "rebuilt-mod-cache");
+
+        await installer.RestoreAsync(gameRoot, install.BackupDirectory);
+
+        Assert.False(File.Exists(cachePath));
+        string invalidationDirectory = Path.Combine(
+            install.BackupDirectory,
+            ".cache-invalidations");
+        Assert.Contains(
+            Directory.EnumerateFiles(invalidationDirectory, "*.cbo"),
+            file => File.ReadAllText(file) == "rebuilt-mod-cache");
+    }
+
+    [Fact]
+    public async Task Repeated_restore_keeps_only_the_latest_cache_invalidation_backup()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        CreateFile(gameRoot, targetRelative, "vanilla");
+        (string zipPath, ModManifest manifest) = CreatePayload("modded", targetRelative);
+        var installer = new ModInstaller();
+        InstallResult install = await installer.InstallAsync(
+            gameRoot,
+            zipPath,
+            manifest,
+            backupRoot);
+        CreateFile(gameRoot, "Cache/Bundle/core_data.cbo", "first-cache");
+        await installer.RestoreAsync(gameRoot, install.BackupDirectory);
+        CreateFile(gameRoot, "Cache/Bundle/core_data.cbo", "second-cache");
+
+        await installer.RestoreAsync(gameRoot, install.BackupDirectory);
+
+        string invalidationDirectory = Path.Combine(
+            install.BackupDirectory,
+            ".cache-invalidations");
+        string backup = Assert.Single(
+            Directory.EnumerateFiles(invalidationDirectory, "*.cbo"));
+        Assert.Equal("second-cache", File.ReadAllText(backup));
+    }
+
+    [Fact]
+    public async Task Restore_accepts_a_v0_1_0_snapshot_without_cache_metadata()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        string targetPath = CreateFile(gameRoot, targetRelative, "modded");
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "stale-mod-cache");
+        string snapshotRoot = Path.Combine(_root, "v0.1.0-snapshot");
+        CreateFile(snapshotRoot, targetRelative, "vanilla");
+        File.WriteAllText(
+            Path.Combine(snapshotRoot, ".snapshot.json"),
+            "{\"Files\":[{\"Target\":\"" + targetRelative +
+            "\",\"HadOriginal\":true}]}");
+        var installer = new ModInstaller();
+
+        bool cacheBundleInvalidated = await installer.RestoreAsync(
+            gameRoot,
+            snapshotRoot);
+
+        Assert.Equal("vanilla", File.ReadAllText(targetPath));
+        Assert.True(cacheBundleInvalidated);
+        Assert.False(File.Exists(cachePath));
+    }
+
+    [Fact]
+    public async Task Install_cache_invalidation_failure_rolls_back_mod_files()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        string targetPath = CreateFile(gameRoot, targetRelative, "vanilla");
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "locked-cache");
+        (string zipPath, ModManifest manifest) = CreatePayload("modded", targetRelative);
+        var installer = new ModInstaller();
+        using FileStream cacheLock = new(
+            cachePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+
+        await Assert.ThrowsAnyAsync<IOException>(() =>
+            installer.InstallAsync(gameRoot, zipPath, manifest, backupRoot));
+
+        Assert.Equal("vanilla", File.ReadAllText(targetPath));
+        Assert.Equal("locked-cache", File.ReadAllText(cachePath));
+    }
+
+    [Fact]
+    public async Task Restore_cache_invalidation_failure_rolls_back_restored_files()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        string targetPath = CreateFile(gameRoot, targetRelative, "vanilla");
+        (string zipPath, ModManifest manifest) = CreatePayload("modded", targetRelative);
+        var installer = new ModInstaller();
+        InstallResult install = await installer.InstallAsync(
+            gameRoot,
+            zipPath,
+            manifest,
+            backupRoot);
+        string cachePath = CreateFile(
+            gameRoot,
+            "Cache/Bundle/core_data.cbo",
+            "locked-cache");
+        using FileStream cacheLock = new(
+            cachePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+
+        await Assert.ThrowsAnyAsync<IOException>(() =>
+            installer.RestoreAsync(gameRoot, install.BackupDirectory));
+
+        Assert.Equal("modded", File.ReadAllText(targetPath));
+        Assert.Equal("locked-cache", File.ReadAllText(cachePath));
     }
 
     [Fact]
