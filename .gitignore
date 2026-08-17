@@ -8,8 +8,11 @@ TestResults/
 artifacts/
 publish/
 
-# Project-local npm dependencies
-.pi/node_modules/
+# Local AI agent and MCP configuration
+.claude/
+.pi/
+.mcp/
+.mcp.json
 
 # User/runtime state
 *.user
