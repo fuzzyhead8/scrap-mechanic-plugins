@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A76D8FAD-A6A0-4CCD-A2C8-F313D077FEF9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScrapMechanicModManager.Core", "src\ScrapMechanicModManager.Core\ScrapMechanicModManager.Core.csproj", "{3D1988E4-6DAF-4278-A15F-55E8712AA4D7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{002CF7C3-7218-432E-A5C5-EAB38D9D0E61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScrapMechanicModManager.Tests", "tests\ScrapMechanicModManager.Tests\ScrapMechanicModManager.Tests.csproj", "{1444ED63-FF5A-485B-8492-E8F45A4D34B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScrapMechanicModManager", "src\ScrapMechanicModManager\ScrapMechanicModManager.csproj", "{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3D1988E4-6DAF-4278-A15F-55E8712AA4D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D1988E4-6DAF-4278-A15F-55E8712AA4D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D1988E4-6DAF-4278-A15F-55E8712AA4D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D1988E4-6DAF-4278-A15F-55E8712AA4D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1444ED63-FF5A-485B-8492-E8F45A4D34B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1444ED63-FF5A-485B-8492-E8F45A4D34B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1444ED63-FF5A-485B-8492-E8F45A4D34B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1444ED63-FF5A-485B-8492-E8F45A4D34B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3D1988E4-6DAF-4278-A15F-55E8712AA4D7} = {A76D8FAD-A6A0-4CCD-A2C8-F313D077FEF9}
+		{1444ED63-FF5A-485B-8492-E8F45A4D34B8} = {002CF7C3-7218-432E-A5C5-EAB38D9D0E61}
+		{2F0C634C-F35D-4007-9EAB-C8BF6D5DF79D} = {A76D8FAD-A6A0-4CCD-A2C8-F313D077FEF9}
+	EndGlobalSection
+EndGlobal

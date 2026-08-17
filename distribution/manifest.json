@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "modId": "scrap-mechanic-robot-loot",
+  "version": "0.1.0",
+  "payloadAsset": "robots_01.zip",
+  "payloadSha256": "D429E6C0A812346F375DC863573A731F95BB0354834CD4BE552D90EC32217767",
+  "supportedBuildIds": [
+    "24529696"
+  ],
+  "files": [
+    {
+      "source": "robots_01/lootsource_haybot.lua",
+      "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua",
+      "sha256": "0F561B32332CCD0019BB97FCFC6070AC3C559269F5E0B315292D5C1337103C60"
+    },
+    {
+      "source": "robots_01/lootsource_tapebot.lua",
+      "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_tapebot.lua",
+      "sha256": "7DDBAB7D7C7D4CDD68FC9A66DD4A2ACA6DF072BB6F534D4B55501311ADC263C6"
+    },
+    {
+      "source": "robots_01/lootsource_totebot_blue.lua",
+      "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_totebot_blue.lua",
+      "sha256": "15016CAB3981FE23A93087438844E310BE6A34EA438D2DB72209953A5A2C82B8"
+    },
+    {
+      "source": "robots_01/lootsource_totebot_green.lua",
+      "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_totebot_green.lua",
+      "sha256": "3D7E9D316CDCD34CE36A424EB62D2D25B49D048C8B087D8F49A833DA4D7F1FC1"
+    }
+  ]
+}

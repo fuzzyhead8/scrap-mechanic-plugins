@@ -1,0 +1,2 @@
+# Scrap Mechanic 1.0 Steam build IDs validated with the current payload.
+24529696

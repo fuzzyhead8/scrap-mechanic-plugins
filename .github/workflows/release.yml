@@ -1,0 +1,57 @@
+name: Build and publish mod manager
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test
+        run: dotnet test ScrapMechanicModManager.sln -c Release
+
+      - name: Publish single-file launcher
+        run: >-
+          dotnet publish src/ScrapMechanicModManager/ScrapMechanicModManager.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o artifacts/launcher
+
+      - name: Build release manifest and payload
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          ./scripts/New-ReleasePayload.ps1 `
+            -Version $version `
+            -OutputDirectory artifacts/release
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          Copy-Item artifacts/launcher/ScrapMechanicModManager.exe artifacts/release/ScrapMechanicModManager.exe
+          Get-ChildItem artifacts/release | Format-Table Name, Length
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/release/ScrapMechanicModManager.exe
+            artifacts/release/manifest.json
+            artifacts/release/robots_01.zip

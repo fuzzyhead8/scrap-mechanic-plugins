@@ -1,0 +1,27 @@
+using System.Diagnostics;
+
+namespace ScrapMechanicModManager.Core.Validation;
+
+public sealed class ExecutableVersionReader
+{
+    public string ReadProductVersion(string executablePath)
+    {
+        if (!File.Exists(executablePath))
+        {
+            throw new FileNotFoundException(
+                "A verzióhoz szükséges executable nem található.",
+                executablePath);
+        }
+
+        FileVersionInfo info = FileVersionInfo.GetVersionInfo(executablePath);
+        string? version = info.ProductVersion ?? info.FileVersion;
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            throw new InvalidDataException(
+                $"Az executable nem tartalmaz verzióinformációt: {executablePath}");
+        }
+
+        string normalized = version.Split(['+', ' '], StringSplitOptions.RemoveEmptyEntries)[0];
+        return normalized;
+    }
+}

@@ -1,0 +1,21 @@
+# .NET
+**/bin/
+**/obj/
+.vs/
+TestResults/
+
+# Local build/release output
+artifacts/
+publish/
+
+# Project-local npm dependencies
+.pi/node_modules/
+
+# User/runtime state
+*.user
+*.suo
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
