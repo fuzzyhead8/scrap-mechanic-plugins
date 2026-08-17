@@ -21,6 +21,14 @@ public sealed class UpdatePipelineTests
     }
 
     [Fact]
+    public void Manifest_accepts_a_semantic_prerelease_version()
+    {
+        ModManifest manifest = CreateValidManifest("0.2.0-preview.1");
+
+        Assert.Empty(manifest.Validate());
+    }
+
+    [Fact]
     public void Manifest_rejects_path_traversal_and_invalid_hashes()
     {
         var manifest = new ModManifest
@@ -114,11 +122,11 @@ public sealed class UpdatePipelineTests
         Assert.Equal(payloadUrl, release.PayloadDownloadUrl.ToString());
     }
 
-    private static ModManifest CreateValidManifest() => new()
+    private static ModManifest CreateValidManifest(string version = "1.0.0") => new()
     {
         SchemaVersion = 1,
         ModId = "robot-loot",
-        Version = "1.0.0",
+        Version = version,
         PayloadAsset = "robots_01.zip",
         PayloadSha256 = ValidHash,
         SupportedBuildIds = ["24529696"],

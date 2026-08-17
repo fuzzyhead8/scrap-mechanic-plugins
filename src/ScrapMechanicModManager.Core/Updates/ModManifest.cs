@@ -17,7 +17,7 @@ public sealed partial class ModManifest
         var errors = new List<string>();
         if (SchemaVersion != 1) errors.Add($"Unsupported SchemaVersion: {SchemaVersion}.");
         if (string.IsNullOrWhiteSpace(ModId)) errors.Add("ModId is required.");
-        if (!System.Version.TryParse(Version, out _)) errors.Add($"Invalid Version: {Version}.");
+        if (!IsSemanticVersion(Version)) errors.Add($"Invalid Version: {Version}.");
         if (!IsSafeAssetName(PayloadAsset)) errors.Add($"Invalid PayloadAsset: {PayloadAsset}.");
         if (!IsSha256(PayloadSha256)) errors.Add("PayloadSha256 must be 64 hexadecimal characters.");
         if (SupportedBuildIds.Count == 0) errors.Add("At least one SupportedBuildId is required.");
@@ -67,7 +67,17 @@ public sealed partial class ModManifest
         && string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal)
         && !value.Contains("..");
 
+    private static bool IsSemanticVersion(string value) =>
+        SemanticVersionRegex().IsMatch(value ?? string.Empty);
+
     private static bool IsSha256(string value) => Sha256Regex().IsMatch(value ?? string.Empty);
+
+    [GeneratedRegex(
+        "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)" +
+        "(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?" +
+        "(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex SemanticVersionRegex();
 
     [GeneratedRegex("^[A-Fa-f0-9]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Regex();

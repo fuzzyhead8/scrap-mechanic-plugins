@@ -32,7 +32,7 @@ public sealed class ReleasePayloadScriptTests : IDisposable
             "-File",
             script,
             "-Version",
-            "0.1.0",
+            "0.2.0-preview.1",
             "-BuildIds",
             "24529696",
             "-OutputDirectory",
@@ -56,6 +56,7 @@ public sealed class ReleasePayloadScriptTests : IDisposable
             await File.ReadAllTextAsync(manifestPath),
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         Assert.Empty(manifest.Validate());
+        Assert.Equal("0.2.0-preview.1", manifest.Version);
         Assert.True(await new HashService().VerifyFileAsync(
             payloadPath,
             manifest.PayloadSha256));

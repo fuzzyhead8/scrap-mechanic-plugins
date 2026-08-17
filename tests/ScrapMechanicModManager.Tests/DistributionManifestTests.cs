@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using System.Xml.Linq;
 using ScrapMechanicModManager.Core.Security;
 using ScrapMechanicModManager.Core.Updates;
 
@@ -45,6 +46,40 @@ public sealed class DistributionManifestTests
                 await hashService.ComputeSha256Async(stream),
                 ignoreCase: true);
         }
+    }
+
+    [Fact]
+    public void Distribution_version_matches_both_launcher_projects()
+    {
+        string repoRoot = FindRepoRoot();
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            repoRoot,
+            "distribution",
+            "manifest.json")));
+        string distributionVersion = manifest.RootElement
+            .GetProperty("version")
+            .GetString()!;
+
+        Assert.Equal(
+            distributionVersion,
+            ReadProjectVersion(Path.Combine(
+                repoRoot,
+                "src",
+                "ScrapMechanicModManager",
+                "ScrapMechanicModManager.csproj")));
+        Assert.Equal(
+            distributionVersion,
+            ReadProjectVersion(Path.Combine(
+                repoRoot,
+                "src",
+                "ScrapMechanicModManager.Desktop",
+                "ScrapMechanicModManager.Desktop.csproj")));
+    }
+
+    private static string ReadProjectVersion(string projectPath)
+    {
+        XDocument project = XDocument.Load(projectPath);
+        return project.Descendants("Version").Single().Value;
     }
 
     private static string FindRepoRoot()

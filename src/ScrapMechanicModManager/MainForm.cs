@@ -70,7 +70,7 @@ public sealed class MainForm : Form
             RepositoryOwner,
             RepositoryName);
         string appVersion = typeof(MainForm).Assembly.GetName().Version?.ToString(3)
-            ?? "0.1.3";
+            ?? "0.2.0-preview.1";
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager", appVersion));
 
