@@ -14,7 +14,14 @@ public sealed class ExecutableVersionReader
         }
 
         FileVersionInfo info = FileVersionInfo.GetVersionInfo(executablePath);
-        string? version = info.ProductVersion ?? info.FileVersion;
+        string? version = !string.IsNullOrWhiteSpace(info.ProductVersion)
+            ? info.ProductVersion
+            : info.FileVersion;
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = PortableExecutableVersionReader.TryReadProductVersion(executablePath);
+        }
+
         if (string.IsNullOrWhiteSpace(version))
         {
             throw new InvalidDataException(
