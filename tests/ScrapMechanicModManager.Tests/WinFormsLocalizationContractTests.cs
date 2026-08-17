@@ -13,6 +13,8 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("List<LocalizedMessage> _logMessages", source, StringComparison.Ordinal);
         Assert.DoesNotContain("private sealed record ManagerSettings", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer", source, StringComparison.Ordinal);
+        Assert.Contains("_settingsStore.Load()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", source, StringComparison.Ordinal);
     }
 
     [Fact]

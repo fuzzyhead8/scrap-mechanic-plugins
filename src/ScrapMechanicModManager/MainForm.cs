@@ -98,7 +98,7 @@ public sealed class MainForm : Form
             Icon = _applicationIcon;
         }
 
-        _settings = _settingsStore.LoadAsync().GetAwaiter().GetResult();
+        _settings = _settingsStore.Load();
         _localizer.Language = _settings.Language;
 
         _releaseClient = new GitHubReleaseClient(

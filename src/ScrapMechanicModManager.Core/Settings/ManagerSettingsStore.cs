@@ -20,6 +20,34 @@ public sealed class ManagerSettingsStore
         _settingsPath = Path.GetFullPath(settingsPath);
     }
 
+    public ManagerSettings Load()
+    {
+        if (!File.Exists(_settingsPath))
+        {
+            return ManagerSettings.Default;
+        }
+
+        try
+        {
+            StoredSettings? stored = JsonSerializer.Deserialize<StoredSettings>(
+                File.ReadAllText(_settingsPath),
+                JsonOptions);
+            return ToManagerSettings(stored);
+        }
+        catch (JsonException)
+        {
+            return ManagerSettings.Default;
+        }
+        catch (IOException)
+        {
+            return ManagerSettings.Default;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return ManagerSettings.Default;
+        }
+    }
+
     public async Task<ManagerSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         if (!File.Exists(_settingsPath))
@@ -34,14 +62,7 @@ public sealed class ManagerSettingsStore
                 stream,
                 JsonOptions,
                 cancellationToken);
-            if (stored is null)
-            {
-                return ManagerSettings.Default;
-            }
-
-            return new ManagerSettings(
-                string.IsNullOrWhiteSpace(stored.GameRoot) ? null : stored.GameRoot,
-                AppLocalizer.ParseLanguage(stored.Language));
+            return ToManagerSettings(stored);
         }
         catch (JsonException)
         {
@@ -102,6 +123,18 @@ public sealed class ManagerSettingsStore
                 File.Delete(temporaryPath);
             }
         }
+    }
+
+    private static ManagerSettings ToManagerSettings(StoredSettings? stored)
+    {
+        if (stored is null)
+        {
+            return ManagerSettings.Default;
+        }
+
+        return new ManagerSettings(
+            string.IsNullOrWhiteSpace(stored.GameRoot) ? null : stored.GameRoot,
+            AppLocalizer.ParseLanguage(stored.Language));
     }
 
     private sealed record StoredSettings(string? GameRoot, string? Language);

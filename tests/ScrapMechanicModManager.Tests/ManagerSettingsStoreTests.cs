@@ -19,6 +19,26 @@ public sealed class ManagerSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Synchronous_startup_load_avoids_blocking_on_an_async_UI_continuation()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        await File.WriteAllTextAsync(
+            SettingsPath,
+            """
+            {
+              "gameRoot": "D:/Steam/Scrap Mechanic",
+              "language": "english"
+            }
+            """);
+        var store = new ManagerSettingsStore(SettingsPath);
+
+        ManagerSettings settings = store.Load();
+
+        Assert.Equal("D:/Steam/Scrap Mechanic", settings.GameRoot);
+        Assert.Equal(AppLanguage.English, settings.Language);
+    }
+
+    [Fact]
     public async Task English_and_game_root_round_trip()
     {
         var store = new ManagerSettingsStore(SettingsPath);

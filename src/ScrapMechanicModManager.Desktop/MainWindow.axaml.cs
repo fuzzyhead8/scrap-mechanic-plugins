@@ -87,7 +87,7 @@ public sealed partial class MainWindow : Window
         _progress = this.FindControl<ProgressBar>("ProgressBar")!;
         _log = this.FindControl<TextBox>("LogTextBox")!;
 
-        _settings = _settingsStore.LoadAsync().GetAwaiter().GetResult();
+        _settings = _settingsStore.Load();
         _localizer.Language = _settings.Language;
         ApplyLocalizedText();
 

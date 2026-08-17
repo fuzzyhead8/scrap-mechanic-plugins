@@ -58,6 +58,8 @@ public sealed class LinuxDesktopProjectTests
         Assert.Contains("OnLanguageChangedAsync", code, StringComparison.Ordinal);
         Assert.DoesNotContain("private sealed record ManagerSettings", code, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer", code, StringComparison.Ordinal);
+        Assert.Contains("_settingsStore.Load()", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetAwaiter().GetResult()", code, StringComparison.Ordinal);
     }
 
     private static string FindRepoRoot()
