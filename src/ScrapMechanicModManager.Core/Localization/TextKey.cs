@@ -29,6 +29,7 @@ public enum TextKey
     GameStatusPathProvidedNeedsCheck,
     GameStatusReady,
     GameStatusValidationErrors,
+    GameStatusInvalid,
     ModStatusUpToDate,
     ModStatusUpdateAvailable,
     ModStatusInstalled,
@@ -68,4 +69,5 @@ public enum TextKey
     ErrorPayloadDownloadFailed,
     ErrorPermissionDenied,
     ErrorOperationFailed,
+    ErrorGameValidationFailed,
 }

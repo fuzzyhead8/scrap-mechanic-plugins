@@ -37,6 +37,7 @@ public sealed class AppLocalizer
                 (TextKey.GameStatusPathProvidedNeedsCheck, "Játék: útvonal megadva, ellenőrzés szükséges"),
                 (TextKey.GameStatusReady, "Játék: Scrap Mechanic {0} · Steam build {1}"),
                 (TextKey.GameStatusValidationErrors, "Játék: {0}"),
+                (TextKey.GameStatusInvalid, "Játék: a telepítés nem érvényes"),
                 (TextKey.ModStatusUpToDate, "Mod: naprakész ({0})"),
                 (TextKey.ModStatusUpdateAvailable, "Mod: telepítés/frissítés elérhető ({0})"),
                 (TextKey.ModStatusInstalled, "Mod: telepítve ({0})"),
@@ -75,7 +76,8 @@ public sealed class AppLocalizer
                 (TextKey.ErrorLatestReleaseUnavailable, "A legfrissebb kiadás nem érhető el. Ellenőrizd a hálózati kapcsolatot és próbáld újra."),
                 (TextKey.ErrorPayloadDownloadFailed, "A payload letöltése sikertelen. Ellenőrizd a hálózati kapcsolatot és próbáld újra."),
                 (TextKey.ErrorPermissionDenied, "Nincs jogosultság a művelet végrehajtásához."),
-                (TextKey.ErrorOperationFailed, "A művelet nem sikerült: {0}")),
+                (TextKey.ErrorOperationFailed, "A művelet nem sikerült."),
+                (TextKey.ErrorGameValidationFailed, "A Scrap Mechanic telepítés ellenőrzése sikertelen.")),
             [AppLanguage.English] = CreateTranslations(
                 (TextKey.AppTitle, "Scrap Mechanic Mod Manager"),
                 (TextKey.AppHeader, "Scrap Mechanic Mod Manager"),
@@ -104,6 +106,7 @@ public sealed class AppLocalizer
                 (TextKey.GameStatusPathProvidedNeedsCheck, "Game: path provided, check required"),
                 (TextKey.GameStatusReady, "Game: Scrap Mechanic {0} · Steam build {1}"),
                 (TextKey.GameStatusValidationErrors, "Game: {0}"),
+                (TextKey.GameStatusInvalid, "Game: the installation is invalid"),
                 (TextKey.ModStatusUpToDate, "Mod: up to date ({0})"),
                 (TextKey.ModStatusUpdateAvailable, "Mod: install/update available ({0})"),
                 (TextKey.ModStatusInstalled, "Mod: installed ({0})"),
@@ -142,7 +145,8 @@ public sealed class AppLocalizer
                 (TextKey.ErrorLatestReleaseUnavailable, "The latest release is unavailable. Check the network connection and try again."),
                 (TextKey.ErrorPayloadDownloadFailed, "Payload download failed. Check the network connection and try again."),
                 (TextKey.ErrorPermissionDenied, "Permission denied for this operation."),
-                (TextKey.ErrorOperationFailed, "The operation failed: {0}")),
+                (TextKey.ErrorOperationFailed, "The operation failed."),
+                (TextKey.ErrorGameValidationFailed, "Scrap Mechanic installation validation failed.")),
         };
 
     private AppLanguage _language = DefaultLanguage;
