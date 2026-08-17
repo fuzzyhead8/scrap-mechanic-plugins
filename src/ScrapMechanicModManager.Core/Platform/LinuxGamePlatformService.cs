@@ -17,7 +17,9 @@ public sealed class LinuxGamePlatformService(bool useFlatpakSteam) : IGamePlatfo
 
     public static bool MatchesGameProcess(string processName, string? commandLine)
     {
-        if (processName.StartsWith("ScrapMechanic", StringComparison.OrdinalIgnoreCase))
+        if (processName.Equals("ScrapMechanic", StringComparison.OrdinalIgnoreCase)
+            || processName.Equals("ScrapMechanic.exe", StringComparison.OrdinalIgnoreCase)
+            || processName.Equals("ScrapMechanic.e", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

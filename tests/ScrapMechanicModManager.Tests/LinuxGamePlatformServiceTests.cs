@@ -40,7 +40,10 @@ public sealed class LinuxGamePlatformServiceTests
 
     [Theory]
     [InlineData("ScrapMechanic", null, true)]
+    [InlineData("ScrapMechanic.exe", null, true)]
     [InlineData("ScrapMechanic.e", null, true)]
+    [InlineData("ScrapMechanicModManager", null, false)]
+    [InlineData("ScrapMechanicMo", null, false)]
     [InlineData("wine64", "/games/Scrap Mechanic/Release/ScrapMechanic.exe\0", true)]
     [InlineData("pressure-vessel", "steam-runtime", false)]
     [InlineData("mechanic-helper", "helper", false)]
