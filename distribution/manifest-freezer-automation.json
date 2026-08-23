@@ -1,0 +1,17 @@
+{
+    "schemaVersion":  1,
+    "modId":  "scrap-mechanic-freezer-automation",
+    "version":  "0.2.0-preview.5",
+    "payloadAsset":  "freezer-automation.zip",
+    "payloadSha256":  "962225CC639F1ABDB46140409F61D4BFFE7F1CF9981BEF68FBBA5AD4C3AAC666",
+    "supportedBuildIds":  [
+                              "24529696"
+                          ],
+    "files":  [
+                  {
+                      "source":  "freezer-automation/Freezer.lua",
+                      "target":  "Survival/Scripts/game/interactables/Freezer.lua",
+                      "sha256":  "3CEE0F34B8347C8B0930051427424F6FDD818F1DFA5F98831C0A126223D177B9"
+                  }
+              ]
+}

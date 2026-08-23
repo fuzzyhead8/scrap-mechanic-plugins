@@ -27,6 +27,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test automation module contracts
+        run: node --test tests/automation-mods.test.mjs
+
       - name: Test complete Windows solution
         if: runner.os == 'Windows'
         run: dotnet test ScrapMechanicModManager.sln -c Release
@@ -142,5 +150,10 @@ jobs:
           files: |
             artifacts/download/windows-launcher/ScrapMechanicModManager.exe
             artifacts/download/linux-launcher/ScrapMechanicModManager-linux-x64.tar.gz
+            artifacts/release/modules.json
             artifacts/release/manifest.json
             artifacts/release/robots_01.zip
+            artifacts/release/manifest-beehive-automation.json
+            artifacts/release/beehive-automation.zip
+            artifacts/release/manifest-freezer-automation.json
+            artifacts/release/freezer-automation.zip
