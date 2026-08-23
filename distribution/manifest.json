@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "modId": "scrap-mechanic-robot-loot",
-  "version": "0.2.0-preview.8",
+  "version": "0.2.0-preview.9",
   "payloadAsset": "robots_01.zip",
   "payloadSha256": "D429E6C0A812346F375DC863573A731F95BB0354834CD4BE552D90EC32217767",
   "supportedBuildIds": [

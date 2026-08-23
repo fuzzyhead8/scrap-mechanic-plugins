@@ -19,7 +19,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\ScrapMechanicModManager.ico</ApplicationIcon>
     <AssemblyName>ScrapMechanicModManager</AssemblyName>
-    <Version>0.2.0-preview.8</Version>
+    <Version>0.2.0-preview.9</Version>
   </PropertyGroup>
 
 </Project>
