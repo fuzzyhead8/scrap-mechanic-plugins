@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -116,12 +117,16 @@ public sealed partial class MainWindow : Window
         ApplySelectedModuleSettings();
         ApplyLocalizedText();
 
+        string informationalVersion = typeof(MainWindow).Assembly
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? "0.2.0-preview.6";
+        string appVersion = informationalVersion.Split('+', 2)[0];
+        string? releaseTag = ReleaseChannel.GetReleaseTag(appVersion);
         _releaseClient = new GitHubReleaseClient(
             _httpClient,
             RepositoryOwner,
-            RepositoryName);
-        string appVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3)
-            ?? "0.2.0-preview.5";
+            RepositoryName,
+            releaseTag);
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", appVersion));
 

@@ -122,6 +122,54 @@ public sealed class UpdatePipelineTests
         Assert.Equal(payloadUrl, release.PayloadDownloadUrl.ToString());
     }
 
+    [Fact]
+    public async Task GitHub_client_can_target_a_prerelease_tag()
+    {
+        const string releaseUrl =
+            "https://api.github.com/repos/fuzzyhead8/scrap-mechanic-plugins/releases/tags/v0.2.0-preview.6";
+        const string manifestUrl = "https://example.test/manifest.json";
+        const string payloadUrl = "https://example.test/robots_01.zip";
+        string releaseJson = $$"""
+        {
+          "tag_name": "v0.2.0-preview.6",
+          "assets": [
+            { "name": "manifest.json", "browser_download_url": "{{manifestUrl}}" },
+            { "name": "robots_01.zip", "browser_download_url": "{{payloadUrl}}" }
+          ]
+        }
+        """;
+        string manifestJson = $$"""
+        {
+          "schemaVersion": 1,
+          "modId": "scrap-mechanic-robot-loot",
+          "version": "0.2.0-preview.6",
+          "payloadAsset": "robots_01.zip",
+          "payloadSha256": "{{ValidHash}}",
+          "supportedBuildIds": ["24529696"],
+          "files": [{
+            "source": "robots_01/lootsource_haybot.lua",
+            "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua",
+            "sha256": "{{ValidHash}}"
+          }]
+        }
+        """;
+        using var httpClient = new HttpClient(
+            new FakeHttpHandler(new Dictionary<string, string>
+            {
+                [releaseUrl] = releaseJson,
+                [manifestUrl] = manifestJson,
+            }));
+        var client = new GitHubReleaseClient(
+            httpClient,
+            "fuzzyhead8",
+            "scrap-mechanic-plugins",
+            "v0.2.0-preview.6");
+
+        ResolvedRelease release = await client.GetLatestReleaseAsync();
+
+        Assert.Equal("v0.2.0-preview.6", release.TagName);
+    }
+
     private static ModManifest CreateValidManifest(string version = "1.0.0") => new()
     {
         SchemaVersion = 1,

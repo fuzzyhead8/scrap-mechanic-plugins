@@ -35,6 +35,8 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("RestoreSelectedModulesAsync", source, StringComparison.Ordinal);
         Assert.Contains("SelectedModuleIds", source, StringComparison.Ordinal);
         Assert.Contains("TextKey.ButtonRestoreSelectedModules", source, StringComparison.Ordinal);
+        Assert.Contains("AssemblyInformationalVersionAttribute", source, StringComparison.Ordinal);
+        Assert.Contains("ReleaseChannel.GetReleaseTag", source, StringComparison.Ordinal);
     }
 
     [Fact]

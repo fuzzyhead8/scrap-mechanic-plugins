@@ -85,6 +85,8 @@ public sealed class LinuxDesktopProjectTests
         Assert.Contains("RestoreSelectedModulesAsync", code, StringComparison.Ordinal);
         Assert.Contains("SelectedModuleIds", code, StringComparison.Ordinal);
         Assert.Contains("TextKey.ButtonRestoreSelectedModules", code, StringComparison.Ordinal);
+        Assert.Contains("AssemblyInformationalVersionAttribute", code, StringComparison.Ordinal);
+        Assert.Contains("ReleaseChannel.GetReleaseTag", code, StringComparison.Ordinal);
     }
 
     [Fact]
