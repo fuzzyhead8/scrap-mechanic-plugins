@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Principal;
 using System.Text;
+using ScrapMechanicModManager.Core.History;
 using ScrapMechanicModManager.Core.Installation;
 using ScrapMechanicModManager.Core.Localization;
 using ScrapMechanicModManager.Core.Settings;
@@ -54,6 +56,9 @@ public sealed class MainForm : Form
     private readonly Label _robotLootStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly Label _beehiveAutomationStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly Label _freezerAutomationStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+    private readonly Label _robotLootBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+    private readonly Label _beehiveAutomationBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+    private readonly Label _freezerAutomationBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly Label _gameStatus = new() { AutoSize = true };
     private readonly Label _modStatus = new() { AutoSize = true };
     private readonly ProgressBar _progress = new()
@@ -78,6 +83,7 @@ public sealed class MainForm : Form
     private readonly ExecutableVersionReader _versionReader = new();
     private readonly ModuleStatusEvaluator _moduleStatusEvaluator = new();
     private readonly ModuleInstallCoordinator _moduleInstaller = new();
+    private readonly BackupSnapshotCatalog _backupCatalog = new();
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30),
@@ -87,8 +93,8 @@ public sealed class MainForm : Form
     private readonly GitHubReleaseClient _releaseClient;
     private readonly AppLocalizer _localizer = new();
     private readonly ManagerSettingsStore _settingsStore = new(SettingsPath);
-    private readonly List<LocalizedMessage> _logMessages = [];
-    private readonly List<DateTime> _logTimestamps = [];
+    private readonly JsonLinesOperationJournal _operationJournal = new(OperationHistoryPath);
+    private readonly List<OperationRecord> _operationHistory = [];
     private ManagerSettings _settings = ManagerSettings.Default;
     private LocalizedMessage _gameStatusMessage = new(TextKey.GameStatusNotChecked);
     private LocalizedMessage _modStatusMessage = new(TextKey.ModStatusNotChecked);
@@ -99,7 +105,15 @@ public sealed class MainForm : Form
         [BuiltInModuleIds.BeehiveAutomation] = new(TextKey.ModuleStatusNotChecked),
         [BuiltInModuleIds.FreezerAutomation] = new(TextKey.ModuleStatusNotChecked),
     };
+    private readonly Dictionary<string, ModuleBackupStatus> _moduleBackupStatuses = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        [BuiltInModuleIds.RobotLoot] = EmptyBackupStatus(BuiltInModuleIds.RobotLoot),
+        [BuiltInModuleIds.BeehiveAutomation] = EmptyBackupStatus(BuiltInModuleIds.BeehiveAutomation),
+        [BuiltInModuleIds.FreezerAutomation] = EmptyBackupStatus(BuiltInModuleIds.FreezerAutomation),
+    };
     private SteamInstallation? _selectedInstallation;
+    private string? _activeOperationId;
     private bool _applyingLanguage;
 
     private static string AppDataRoot => Path.Combine(
@@ -107,6 +121,9 @@ public sealed class MainForm : Form
         "ScrapMechanicModManager");
     private static string BackupRoot => Path.Combine(AppDataRoot, "backups");
     private static string SettingsPath => Path.Combine(AppDataRoot, "settings.json");
+    private static string OperationHistoryPath => Path.Combine(
+        AppDataRoot,
+        "logs", "operations.jsonl");
 
     public MainForm()
     {
@@ -134,6 +151,8 @@ public sealed class MainForm : Form
 
         InitializeUi();
         ApplySelectedModuleSettings();
+        LoadOperationHistory();
+        RefreshBackupStatuses();
         ApplyLocalizedText();
         WireEvents();
     }
@@ -216,21 +235,25 @@ public sealed class MainForm : Form
         var modulesPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 4,
             AutoSize = true,
             Padding = new Padding(0, 4, 0, 4),
         };
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
         modulesPanel.Controls.Add(_modulesLabel, 0, 0);
-        modulesPanel.SetColumnSpan(_modulesLabel, 2);
+        modulesPanel.SetColumnSpan(_modulesLabel, 3);
         modulesPanel.Controls.Add(_robotLootModule, 0, 1);
         modulesPanel.Controls.Add(_robotLootStatus, 1, 1);
+        modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1);
         modulesPanel.Controls.Add(_beehiveAutomationModule, 0, 2);
         modulesPanel.Controls.Add(_beehiveAutomationStatus, 1, 2);
+        modulesPanel.Controls.Add(_beehiveAutomationBackupStatus, 2, 2);
         modulesPanel.Controls.Add(_freezerAutomationModule, 0, 3);
         modulesPanel.Controls.Add(_freezerAutomationStatus, 1, 3);
+        modulesPanel.Controls.Add(_freezerAutomationBackupStatus, 2, 3);
 
         var actions = new FlowLayoutPanel
         {
@@ -339,6 +362,7 @@ public sealed class MainForm : Form
         {
             SetModuleStatus(modId, TextKey.ModuleStatusNotChecked);
         }
+        RefreshBackupStatuses();
     }
 
     private async Task CheckForUpdatesAsync()
@@ -373,6 +397,7 @@ public sealed class MainForm : Form
         SetModStatus(
             allCurrent ? TextKey.ModStatusUpToDate : TextKey.ModStatusUpdateAvailable,
             release.TagName);
+        RefreshBackupStatuses();
         Log(TextKey.LogLatestRelease, release.TagName, installation.BuildId);
     }
 
@@ -401,8 +426,12 @@ public sealed class MainForm : Form
                     Path.GetTempPath(),
                     $"smmm-{Guid.NewGuid():N}-{module.Manifest.PayloadAsset}");
                 temporaryZips.Add(temporaryZip);
-                Log(
+                LogDetailed(
                     TextKey.LogModulePayloadDownload,
+                    OperationSeverity.Information,
+                    [module.ModId],
+                    null,
+                    null,
                     GetModuleDisplayName(module.ModId),
                     module.PayloadDownloadUrl);
                 using HttpResponseMessage response = await _httpClient.GetAsync(
@@ -436,12 +465,23 @@ public sealed class MainForm : Form
                     module.Manifest.Version);
             }
             SetModStatus(TextKey.ModStatusInstalled, release.TagName);
-            Log(
+            LogDetailed(
                 TextKey.LogSelectedModulesInstalled,
+                OperationSeverity.Information,
+                selectedModuleIds,
+                result.BackupDirectory,
+                null,
                 string.Join(", ", selectedModules.Select(module =>
                     GetModuleDisplayName(module.ModId))),
                 result.InstalledFileCount);
-            Log(TextKey.LogBackupDirectory, result.BackupDirectory);
+            LogDetailed(
+                TextKey.LogBackupDirectory,
+                OperationSeverity.Information,
+                selectedModuleIds,
+                result.BackupDirectory,
+                null,
+                result.BackupDirectory);
+            RefreshBackupStatuses();
             if (result.CacheBundleInvalidated)
             {
                 Log(TextKey.LogScriptCacheInvalidated);
@@ -503,12 +543,17 @@ public sealed class MainForm : Form
                 modId,
                 _lifetimeCancellation.Token);
             SetModuleStatus(modId, TextKey.ModuleStatusRestored);
-            Log(
+            LogDetailed(
                 TextKey.LogModuleRestored,
+                OperationSeverity.Information,
+                [modId],
+                snapshotDirectory,
+                null,
                 GetModuleDisplayName(modId),
                 snapshotDirectory);
         }
         SetModStatus(TextKey.ModStatusBackupRestored);
+        RefreshBackupStatuses();
         if (cacheBundleInvalidated)
         {
             Log(TextKey.LogScriptCacheInvalidated);
@@ -709,7 +754,13 @@ public sealed class MainForm : Form
         }
         catch (Win32Exception error)
         {
-            Log(TextKey.LogElevatedRestartCanceled, error.NativeErrorCode);
+            LogDetailed(
+                TextKey.LogElevatedRestartCanceled,
+                OperationSeverity.Warning,
+                GetSelectedModuleIds(),
+                null,
+                error,
+                error.NativeErrorCode);
             return false;
         }
     }
@@ -725,22 +776,36 @@ public sealed class MainForm : Form
     private async Task RunBusyAsync(Func<Task> operation)
     {
         SetBusy(true);
+        string? previousOperationId = _activeOperationId;
+        _activeOperationId = Guid.NewGuid().ToString("N");
         try
         {
             await operation();
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
         {
-            Log(TextKey.LogOperationCanceled);
+            LogDetailed(
+                TextKey.LogOperationCanceled,
+                OperationSeverity.Warning,
+                GetSelectedModuleIds(),
+                null,
+                null);
         }
         catch (Exception error)
         {
             string message = GetUserFacingError(error);
-            Log(TextKey.LogError, message);
+            LogDetailed(
+                TextKey.LogError,
+                OperationSeverity.Error,
+                GetSelectedModuleIds(),
+                null,
+                error,
+                message);
             ShowError(message);
         }
         finally
         {
+            _activeOperationId = previousOperationId;
             SetBusy(false);
         }
     }
@@ -841,6 +906,7 @@ public sealed class MainForm : Form
         _gameStatus.Text = _gameStatusMessage.Render(_localizer);
         _modStatus.Text = _modStatusMessage.Render(_localizer);
         RenderModuleStatuses();
+        RenderBackupStatuses();
         RenderLog();
     }
 
@@ -905,6 +971,61 @@ public sealed class MainForm : Form
                 .Render(_localizer);
     }
 
+    private void RefreshBackupStatuses()
+    {
+        foreach (string modId in BuiltInModuleIds.All)
+        {
+            _moduleBackupStatuses[modId] = _backupCatalog.GetModuleStatus(
+                BackupRoot,
+                modId);
+        }
+        RenderBackupStatuses();
+    }
+
+    private void RenderBackupStatuses()
+    {
+        RenderBackupStatus(
+            _robotLootBackupStatus,
+            _moduleBackupStatuses[BuiltInModuleIds.RobotLoot]);
+        RenderBackupStatus(
+            _beehiveAutomationBackupStatus,
+            _moduleBackupStatuses[BuiltInModuleIds.BeehiveAutomation]);
+        RenderBackupStatus(
+            _freezerAutomationBackupStatus,
+            _moduleBackupStatuses[BuiltInModuleIds.FreezerAutomation]);
+    }
+
+    private void RenderBackupStatus(Label label, ModuleBackupStatus status)
+    {
+        TextKey key = status.State switch
+        {
+            BackupSnapshotState.Available when status.CreatedAtUtc is not null =>
+                TextKey.ModuleBackupAvailable,
+            BackupSnapshotState.Corrupt => TextKey.ModuleBackupCorrupt,
+            BackupSnapshotState.Legacy => TextKey.ModuleBackupLegacy,
+            _ => TextKey.ModuleBackupMissing,
+        };
+        if (key == TextKey.ModuleBackupAvailable)
+        {
+            CultureInfo culture = _localizer.Language == AppLanguage.Hungarian
+                ? CultureInfo.GetCultureInfo("hu-HU")
+                : CultureInfo.GetCultureInfo("en-US");
+            string localTimestamp = status.CreatedAtUtc!.Value
+                .ToLocalTime()
+                .ToString("g", culture);
+            label.Text = _localizer.Get(key, localTimestamp);
+            return;
+        }
+        label.Text = _localizer.Get(key);
+    }
+
+    private static ModuleBackupStatus EmptyBackupStatus(string modId) => new(
+        modId,
+        BackupSnapshotState.None,
+        null,
+        null,
+        null);
+
     private void SetGameStatus(TextKey key, params object?[] arguments)
     {
         _gameStatusMessage = new LocalizedMessage(key, arguments);
@@ -917,22 +1038,130 @@ public sealed class MainForm : Form
         _modStatus.Text = _modStatusMessage.Render(_localizer);
     }
 
-    private void Log(TextKey key, params object?[] arguments)
+    private void LoadOperationHistory()
     {
-        _logMessages.Add(new LocalizedMessage(key, arguments));
-        _logTimestamps.Add(DateTime.Now);
+        bool loaded = _operationJournal.TryReadRecent(
+            out IReadOnlyList<OperationRecord> records,
+            out string? error);
+        _operationHistory.Clear();
+        _operationHistory.AddRange(records);
+        TrimOperationHistory();
+        if (!loaded)
+        {
+            AddOperationRecord(
+                CreateOperationRecord(
+                    TextKey.LogHistoryReadWarning,
+                    OperationSeverity.Warning,
+                    [],
+                    null,
+                    null,
+                    [error ?? "Unknown operation history read error"]),
+                persist: false);
+        }
+    }
+
+    private void Log(TextKey key, params object?[] arguments) =>
+        LogDetailed(
+            key,
+            OperationSeverity.Information,
+            [],
+            null,
+            null,
+            arguments);
+
+    private void LogDetailed(
+        TextKey key,
+        OperationSeverity severity,
+        IReadOnlyList<string> moduleIds,
+        string? backupDirectory,
+        Exception? technicalError,
+        params object?[] arguments)
+    {
+        AddOperationRecord(
+            CreateOperationRecord(
+                key,
+                severity,
+                moduleIds,
+                backupDirectory,
+                technicalError,
+                arguments),
+            persist: true);
+    }
+
+    private OperationRecord CreateOperationRecord(
+        TextKey key,
+        OperationSeverity severity,
+        IReadOnlyList<string> moduleIds,
+        string? backupDirectory,
+        Exception? technicalError,
+        IReadOnlyList<object?> arguments) => new()
+        {
+            TimestampUtc = DateTimeOffset.UtcNow,
+            Severity = severity,
+            MessageKey = key.ToString(),
+            Arguments = arguments
+                .Select(argument => Convert.ToString(
+                    argument,
+                    CultureInfo.InvariantCulture) ?? string.Empty)
+                .ToArray(),
+            ModuleIds = moduleIds
+                .Where(modId => !string.IsNullOrWhiteSpace(modId))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            OperationId = _activeOperationId ?? Guid.NewGuid().ToString("N"),
+            BackupDirectory = string.IsNullOrWhiteSpace(backupDirectory)
+                ? null
+                : backupDirectory,
+            TechnicalErrorType = technicalError?.GetType().FullName,
+            TechnicalDetail = technicalError?.ToString(),
+        };
+
+    private void AddOperationRecord(OperationRecord record, bool persist)
+    {
+        _operationHistory.Add(record);
+        TrimOperationHistory();
         RenderLog();
+        if (!persist || _operationJournal.TryAppend(record, out string? error))
+        {
+            return;
+        }
+
+        AddOperationRecord(
+            CreateOperationRecord(
+                TextKey.LogHistoryWriteWarning,
+                OperationSeverity.Warning,
+                [],
+                null,
+                null,
+                [error ?? "Unknown operation history write error"]),
+            persist: false);
+    }
+
+    private void TrimOperationHistory()
+    {
+        int overflow = _operationHistory.Count
+            - OperationJournalOptions.Default.MaxUiEntries;
+        if (overflow > 0)
+        {
+            _operationHistory.RemoveRange(0, overflow);
+        }
     }
 
     private void RenderLog()
     {
         var text = new StringBuilder();
-        for (int index = 0; index < _logMessages.Count; index++)
+        foreach (OperationRecord record in _operationHistory)
         {
+            LocalizedMessage message = LocalizedMessage.FromPersisted(
+                record.MessageKey,
+                record.Arguments,
+                record.FallbackText);
             text.Append('[')
-                .Append(_logTimestamps[index].ToString("HH:mm:ss"))
+                .Append(record.TimestampUtc.ToLocalTime().ToString(
+                    "HH:mm:ss",
+                    CultureInfo.InvariantCulture))
                 .Append("] ")
-                .AppendLine(_logMessages[index].Render(_localizer));
+                .AppendLine(message.Render(_localizer));
         }
         _log.Text = text.ToString();
         _log.SelectionStart = _log.TextLength;
