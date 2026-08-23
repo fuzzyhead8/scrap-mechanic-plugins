@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 using ScrapMechanicModManager.Core.Security;
@@ -8,6 +9,9 @@ namespace ScrapMechanicModManager.Tests;
 
 public sealed class DistributionManifestTests
 {
+    private const string RobotPayloadSha256 =
+        "D429E6C0A812346F375DC863573A731F95BB0354834CD4BE552D90EC32217767";
+
     [Fact]
     public async Task Distribution_manifest_matches_the_tested_payload_zip()
     {
@@ -34,6 +38,7 @@ public sealed class DistributionManifestTests
 
         var hashService = new HashService();
         Assert.True(await hashService.VerifyFileAsync(zipPath, manifest.PayloadSha256));
+        Assert.Equal(RobotPayloadSha256, manifest.PayloadSha256, ignoreCase: true);
 
         using ZipArchive archive = ZipFile.OpenRead(zipPath);
         foreach (ModFileEntry file in manifest.Files)
@@ -44,6 +49,93 @@ public sealed class DistributionManifestTests
             Assert.Equal(
                 file.Sha256,
                 await hashService.ComputeSha256Async(stream),
+                ignoreCase: true);
+        }
+    }
+
+    [Fact]
+    public async Task Distribution_declares_three_independent_modules()
+    {
+        string repoRoot = FindRepoRoot();
+        string modulesPath = Path.Combine(repoRoot, "distribution", "modules.json");
+        Assert.True(File.Exists(modulesPath), $"Missing {modulesPath}");
+        using JsonDocument catalog = JsonDocument.Parse(
+            await File.ReadAllTextAsync(modulesPath));
+        Assert.Equal(1, catalog.RootElement.GetProperty("schemaVersion").GetInt32());
+        JsonElement[] modules = catalog.RootElement
+            .GetProperty("modules")
+            .EnumerateArray()
+            .ToArray();
+        Assert.Equal(3, modules.Length);
+        Assert.Equal(
+            3,
+            modules.Select(item => item.GetProperty("modId").GetString()).Distinct().Count());
+        Assert.Equal(
+            3,
+            modules.Select(item => item.GetProperty("manifestAsset").GetString()).Distinct().Count());
+        Assert.True(modules.Single(item =>
+            item.GetProperty("modId").GetString() == "scrap-mechanic-robot-loot")
+            .GetProperty("defaultSelected")
+            .GetBoolean());
+        Assert.All(
+            modules.Where(item =>
+                item.GetProperty("modId").GetString() != "scrap-mechanic-robot-loot"),
+            item => Assert.False(item.GetProperty("defaultSelected").GetBoolean()));
+
+        var expectedAutomation = new[]
+        {
+            new
+            {
+                ModId = "scrap-mechanic-beehive-automation",
+                ManifestAsset = "manifest-beehive-automation.json",
+                PayloadAsset = "beehive-automation.zip",
+                Source = "beehive-automation/InteractableBeehive.lua",
+                Target = "Survival/Scripts/game/interactables/InteractableBeehive.lua",
+                Staging = Path.Combine("mods", "beehive-automation", "InteractableBeehive.lua"),
+            },
+            new
+            {
+                ModId = "scrap-mechanic-freezer-automation",
+                ManifestAsset = "manifest-freezer-automation.json",
+                PayloadAsset = "freezer-automation.zip",
+                Source = "freezer-automation/Freezer.lua",
+                Target = "Survival/Scripts/game/interactables/Freezer.lua",
+                Staging = Path.Combine("mods", "freezer-automation", "Freezer.lua"),
+            },
+        };
+        var hashService = new HashService();
+        foreach (var expected in expectedAutomation)
+        {
+            JsonElement module = Assert.Single(
+                modules,
+                item => item.GetProperty("modId").GetString() == expected.ModId);
+            Assert.Equal(
+                expected.ManifestAsset,
+                module.GetProperty("manifestAsset").GetString());
+
+            string manifestPath = Path.Combine(
+                repoRoot,
+                "distribution",
+                expected.ManifestAsset);
+            Assert.True(File.Exists(manifestPath), $"Missing {manifestPath}");
+            ModManifest manifest = JsonSerializer.Deserialize<ModManifest>(
+                await File.ReadAllTextAsync(manifestPath),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            Assert.Empty(manifest.Validate());
+            Assert.Equal(expected.ModId, manifest.ModId);
+            Assert.Equal(expected.PayloadAsset, manifest.PayloadAsset);
+            ModFileEntry file = Assert.Single(manifest.Files);
+            Assert.Equal(expected.Source, file.Source);
+            Assert.Equal(expected.Target, file.Target);
+            string stagingText = await File.ReadAllTextAsync(
+                Path.Combine(repoRoot, expected.Staging));
+            byte[] canonicalBytes = Encoding.UTF8.GetBytes(
+                stagingText.Replace("\r\n", "\n", StringComparison.Ordinal)
+                    .Replace('\r', '\n'));
+            await using var canonicalStream = new MemoryStream(canonicalBytes);
+            Assert.Equal(
+                file.Sha256,
+                await hashService.ComputeSha256Async(canonicalStream),
                 ignoreCase: true);
         }
     }

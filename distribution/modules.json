@@ -1,0 +1,20 @@
+{
+    "schemaVersion":  1,
+    "modules":  [
+                    {
+                        "modId":  "scrap-mechanic-robot-loot",
+                        "manifestAsset":  "manifest.json",
+                        "defaultSelected":  true
+                    },
+                    {
+                        "modId":  "scrap-mechanic-beehive-automation",
+                        "manifestAsset":  "manifest-beehive-automation.json",
+                        "defaultSelected":  false
+                    },
+                    {
+                        "modId":  "scrap-mechanic-freezer-automation",
+                        "manifestAsset":  "manifest-freezer-automation.json",
+                        "defaultSelected":  false
+                    }
+                ]
+}
