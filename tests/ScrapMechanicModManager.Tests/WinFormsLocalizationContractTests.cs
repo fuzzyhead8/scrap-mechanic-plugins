@@ -10,7 +10,8 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("AppLocalizer _localizer", source, StringComparison.Ordinal);
         Assert.Contains("ManagerSettingsStore _settingsStore", source, StringComparison.Ordinal);
         Assert.Contains("ComboBox _languageSelector", source, StringComparison.Ordinal);
-        Assert.Contains("List<LocalizedMessage> _logMessages", source, StringComparison.Ordinal);
+        Assert.Contains("List<OperationRecord> _operationHistory", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("List<LocalizedMessage> _logMessages", source, StringComparison.Ordinal);
         Assert.DoesNotContain("private sealed record ManagerSettings", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JsonSerializer", source, StringComparison.Ordinal);
         Assert.Contains("_settingsStore.Load()", source, StringComparison.Ordinal);
@@ -40,6 +41,35 @@ public sealed class WinFormsLocalizationContractTests
     }
 
     [Fact]
+    public void WinForms_uses_shared_persistent_history_and_backup_services()
+    {
+        string source = File.ReadAllText(MainFormPath);
+
+        Assert.Contains("JsonLinesOperationJournal _operationJournal", source, StringComparison.Ordinal);
+        Assert.Contains("BackupSnapshotCatalog _backupCatalog", source, StringComparison.Ordinal);
+        Assert.Contains("OperationHistoryPath", source, StringComparison.Ordinal);
+        Assert.Contains("\"logs\", \"operations.jsonl\"", source, StringComparison.Ordinal);
+        Assert.Contains("Label _robotLootBackupStatus", source, StringComparison.Ordinal);
+        Assert.Contains("Label _beehiveAutomationBackupStatus", source, StringComparison.Ordinal);
+        Assert.Contains("Label _freezerAutomationBackupStatus", source, StringComparison.Ordinal);
+        Assert.Contains("LoadOperationHistory();", source, StringComparison.Ordinal);
+        Assert.Contains("RenderBackupStatuses();", source, StringComparison.Ordinal);
+        Assert.True(
+            CountOccurrences(source, "RefreshBackupStatuses();") >= 5,
+            "Backup status must refresh at startup and after check, install, restore, and game-root changes.");
+        Assert.Contains("LocalizedMessage.FromPersisted(", source, StringComparison.Ordinal);
+        Assert.Contains("OperationSeverity.Error", source, StringComparison.Ordinal);
+        Assert.Contains("OperationId =", source, StringComparison.Ordinal);
+        Assert.Contains("ModuleIds =", source, StringComparison.Ordinal);
+        Assert.Contains("BackupDirectory =", source, StringComparison.Ordinal);
+        Assert.Contains("TechnicalErrorType =", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("_logTimestamps", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonDocument", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SnapshotLookupMetadata", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SnapshotMetadata", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WinForms_language_change_reapplies_all_visible_localized_state()
     {
         string source = File.ReadAllText(MainFormPath);
@@ -49,6 +79,18 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("RenderLog", source, StringComparison.Ordinal);
         Assert.Contains("OnLanguageChangedAsync", source, StringComparison.Ordinal);
         Assert.Contains("SaveCurrentSettingsAsync", source, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        int count = 0;
+        int index = 0;
+        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+        return count;
     }
 
     private static string MainFormPath => Path.Combine(
