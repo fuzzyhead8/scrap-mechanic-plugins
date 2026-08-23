@@ -108,6 +108,77 @@ public sealed class AppLocalizerTests
     }
 
     [Fact]
+    public void History_and_backup_status_have_Hungarian_and_English_text()
+    {
+        var hungarian = new AppLocalizer(AppLanguage.Hungarian);
+        var english = new AppLocalizer(AppLanguage.English);
+        const string localTimestamp = "2026-08-23 12:25";
+        TextKey[] keys =
+        [
+            TextKey.ModuleBackupAvailable,
+            TextKey.ModuleBackupMissing,
+            TextKey.ModuleBackupCorrupt,
+            TextKey.ModuleBackupLegacy,
+            TextKey.LogHistoryReadWarning,
+            TextKey.LogHistoryWriteWarning,
+            TextKey.LogUnknownPersistedEvent,
+        ];
+
+        foreach (TextKey key in keys)
+        {
+            string hungarianText = hungarian.Get(key, localTimestamp);
+            string englishText = english.Get(key, localTimestamp);
+            Assert.False(string.IsNullOrWhiteSpace(hungarianText));
+            Assert.False(string.IsNullOrWhiteSpace(englishText));
+            Assert.NotEqual(hungarianText, englishText);
+        }
+
+        Assert.Contains(
+            localTimestamp,
+            english.Get(TextKey.ModuleBackupAvailable, localTimestamp));
+        Assert.Contains(
+            "No backup",
+            english.Get(TextKey.ModuleBackupMissing),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "corrupt",
+            english.Get(TextKey.ModuleBackupCorrupt),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "legacy",
+            english.Get(TextKey.ModuleBackupLegacy),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Persisted_message_key_converts_to_a_localized_message()
+    {
+        LocalizedMessage message = LocalizedMessage.FromPersisted(
+            nameof(TextKey.LogBackupDirectory),
+            ["C:/backup"],
+            "stored fallback");
+
+        Assert.Equal(TextKey.LogBackupDirectory, message.Key);
+        Assert.Equal(
+            "Backup: C:/backup",
+            message.Render(new AppLocalizer(AppLanguage.English)));
+    }
+
+    [Fact]
+    public void Unknown_persisted_message_key_uses_the_stored_fallback()
+    {
+        LocalizedMessage message = LocalizedMessage.FromPersisted(
+            "RemovedInNewVersion",
+            ["ignored"],
+            "Stored previous-version text");
+
+        Assert.Equal(TextKey.LogUnknownPersistedEvent, message.Key);
+        Assert.Equal(
+            "Stored previous-version text",
+            message.Render(new AppLocalizer(AppLanguage.English)));
+    }
+
+    [Fact]
     public void Every_text_key_has_nonempty_Hungarian_and_English_translation()
     {
         foreach (TextKey key in Enum.GetValues<TextKey>())
@@ -155,6 +226,10 @@ public sealed class AppLocalizerTests
             TextKey.ModuleStatusUpdateAvailable,
             TextKey.ModuleStatusInstalled,
             TextKey.ModuleStatusRestored,
+            TextKey.ModuleBackupAvailable,
+            TextKey.ModuleBackupMissing,
+            TextKey.ModuleBackupCorrupt,
+            TextKey.ModuleBackupLegacy,
             TextKey.LanguageLabel,
             TextKey.LanguageHungarian,
             TextKey.LanguageEnglish,
@@ -194,6 +269,9 @@ public sealed class AppLocalizerTests
             TextKey.LogModulePayloadDownload,
             TextKey.LogSelectedModulesInstalled,
             TextKey.LogModuleRestored,
+            TextKey.LogHistoryReadWarning,
+            TextKey.LogHistoryWriteWarning,
+            TextKey.LogUnknownPersistedEvent,
             TextKey.DialogSelectGameRootTitle,
             TextKey.DialogRestoreBackupTitle,
             TextKey.DialogRestoreBackupMessage,
