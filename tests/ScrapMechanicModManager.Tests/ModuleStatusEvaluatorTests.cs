@@ -44,11 +44,24 @@ public sealed class ModuleStatusEvaluatorTests : IDisposable
         ModManifest manifest = CreateManifest("new-version");
         CreateTarget("old-version");
         string snapshot = Path.Combine(_root, "backups", "20260101-module");
-        Directory.CreateDirectory(snapshot);
+        string backupTarget = Path.Combine(
+            snapshot,
+            "Survival",
+            "Scripts",
+            "example.lua");
+        Directory.CreateDirectory(Path.GetDirectoryName(backupTarget)!);
+        await File.WriteAllTextAsync(backupTarget, "vanilla", new UTF8Encoding(false));
         await File.WriteAllTextAsync(
             Path.Combine(snapshot, ".snapshot.json"),
             """
             {
+              "schemaVersion": 2,
+              "modules": [
+                {
+                  "modId": "example-module",
+                  "version": "0.9.0"
+                }
+              ],
               "files": [
                 {
                   "modId": "example-module",
@@ -85,6 +98,13 @@ public sealed class ModuleStatusEvaluatorTests : IDisposable
             Path.Combine(snapshot, ".snapshot.json"),
             """
             {
+              "schemaVersion": 2,
+              "modules": [
+                {
+                  "modId": "example-module",
+                  "version": "0.9.0"
+                }
+              ],
               "files": [
                 {
                   "modId": "example-module",

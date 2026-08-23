@@ -23,7 +23,10 @@ public sealed class OperationJournalTests : IDisposable
     public void Operation_record_round_trips_as_one_utf8_json_line()
     {
         DateTimeOffset timestamp = new(2026, 8, 23, 12, 25, 50, TimeSpan.Zero);
-        string backupPath = Path.Combine(_temporaryRoot, "backups", "árvíztűrő-snapshot");
+        string backupPath = Path.Combine(
+            _temporaryRoot,
+            "backups",
+            "\u00E1rv\u00EDzt\u0171r\u0151-snapshot");
         var expected = new OperationRecord
         {
             TimestampUtc = timestamp,

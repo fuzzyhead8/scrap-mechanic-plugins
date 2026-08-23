@@ -230,29 +230,77 @@ public sealed class ModuleInstallCoordinatorTests : IDisposable
         Assert.Null(missing);
     }
 
+    [Fact]
+    public void Latest_snapshot_lookup_skips_a_newer_incomplete_snapshot()
+    {
+        string backupRoot = Path.Combine(_root, "backups");
+        string valid = CreateSnapshotMetadata(
+            backupRoot,
+            "20260101-valid",
+            "module-first");
+        CreateSnapshotMetadata(
+            backupRoot,
+            "20260102-incomplete",
+            "module-first",
+            createBackupFile: false);
+        var coordinator = new ModuleInstallCoordinator();
+
+        string? match = coordinator.FindLatestSnapshotForModule(
+            backupRoot,
+            "module-first");
+
+        Assert.Equal(valid, match);
+    }
+
     private static string CreateSnapshotMetadata(
         string backupRoot,
         string snapshotName,
-        string? modId)
+        string? modId,
+        bool createBackupFile = true)
     {
         string snapshot = Path.Combine(backupRoot, snapshotName);
         Directory.CreateDirectory(snapshot);
-        string modIdProperty = modId is null
-            ? string.Empty
-            : $"\"modId\": \"{modId}\",";
+        if (modId is null)
+        {
+            File.WriteAllText(
+                Path.Combine(snapshot, ".snapshot.json"),
+                """
+                {
+                  "files": [
+                    {
+                      "target": "Survival/Scripts/example.lua",
+                      "hadOriginal": true
+                    }
+                  ]
+                }
+                """);
+            return snapshot;
+        }
+
         File.WriteAllText(
             Path.Combine(snapshot, ".snapshot.json"),
             $$"""
             {
+              "schemaVersion": 2,
+              "modules": [
+                {
+                  "modId": "{{modId}}",
+                  "version": "1.0.0"
+                }
+              ],
               "files": [
                 {
-                  {{modIdProperty}}
+                  "modId": "{{modId}}",
                   "target": "Survival/Scripts/example.lua",
                   "hadOriginal": true
                 }
               ]
             }
             """);
+        if (createBackupFile)
+        {
+            CreateFile(snapshot, "Survival/Scripts/example.lua", "original");
+        }
         return snapshot;
     }
 
