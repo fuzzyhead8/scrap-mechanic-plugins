@@ -8,6 +8,9 @@ TestResults/
 artifacts/
 publish/
 
+# Project documentation is maintained in the local Obsidian vault
+docs/
+
 # Local AI agent and MCP configuration
 .claude/
 .pi/
