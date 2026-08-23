@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 using ScrapMechanicModManager.Core.Security;
+using ScrapMechanicModManager.Core.Settings;
 using ScrapMechanicModManager.Core.Updates;
 
 namespace ScrapMechanicModManager.Tests;
@@ -138,6 +139,25 @@ public sealed class DistributionManifestTests
                 await hashService.ComputeSha256Async(canonicalStream),
                 ignoreCase: true);
         }
+    }
+
+    [Fact]
+    public async Task Built_in_module_ids_match_the_release_catalog()
+    {
+        string repoRoot = FindRepoRoot();
+        string modulesPath = Path.Combine(repoRoot, "distribution", "modules.json");
+        ModuleCatalog catalog = JsonSerializer.Deserialize<ModuleCatalog>(
+            await File.ReadAllTextAsync(modulesPath),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        Assert.Equal(
+            BuiltInModuleIds.All.Order(StringComparer.Ordinal),
+            catalog.Modules.Select(module => module.ModId).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            BuiltInModuleIds.DefaultSelected,
+            catalog.Modules
+                .Where(module => module.DefaultSelected)
+                .Select(module => module.ModId));
     }
 
     [Fact]

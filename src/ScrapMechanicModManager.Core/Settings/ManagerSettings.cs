@@ -4,15 +4,32 @@ namespace ScrapMechanicModManager.Core.Settings;
 
 public static class BuiltInModuleIds
 {
-    public const string RobotLoot = "robot-loot";
-    public const string BeehiveAutomation = "beehive-automation";
-    public const string FreezerAutomation = "freezer-automation";
+    public const string RobotLoot = "scrap-mechanic-robot-loot";
+    public const string BeehiveAutomation = "scrap-mechanic-beehive-automation";
+    public const string FreezerAutomation = "scrap-mechanic-freezer-automation";
 
     public static IReadOnlyList<string> DefaultSelected { get; } =
         Array.AsReadOnly([RobotLoot]);
 
     public static IReadOnlyList<string> All { get; } =
         Array.AsReadOnly([RobotLoot, BeehiveAutomation, FreezerAutomation]);
+
+    internal static string Canonicalize(string moduleId)
+    {
+        if (moduleId.Equals("robot-loot", StringComparison.OrdinalIgnoreCase))
+        {
+            return RobotLoot;
+        }
+        if (moduleId.Equals("beehive-automation", StringComparison.OrdinalIgnoreCase))
+        {
+            return BeehiveAutomation;
+        }
+        if (moduleId.Equals("freezer-automation", StringComparison.OrdinalIgnoreCase))
+        {
+            return FreezerAutomation;
+        }
+        return moduleId;
+    }
 }
 
 public sealed class ManagerSettings : IEquatable<ManagerSettings>
@@ -62,7 +79,7 @@ public sealed class ManagerSettings : IEquatable<ManagerSettings>
         IEnumerable<string> moduleIds) =>
         moduleIds
             .Where(moduleId => !string.IsNullOrWhiteSpace(moduleId))
-            .Select(moduleId => moduleId.Trim())
+            .Select(moduleId => BuiltInModuleIds.Canonicalize(moduleId.Trim()))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 }
