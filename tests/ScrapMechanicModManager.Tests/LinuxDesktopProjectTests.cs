@@ -51,7 +51,8 @@ public sealed class LinuxDesktopProjectTests
         Assert.Contains("SelectionChanged=\"OnLanguageChanged\"", xaml, StringComparison.Ordinal);
         Assert.Contains("AppLocalizer _localizer", code, StringComparison.Ordinal);
         Assert.Contains("ManagerSettingsStore _settingsStore", code, StringComparison.Ordinal);
-        Assert.Contains("List<LocalizedMessage> _logMessages", code, StringComparison.Ordinal);
+        Assert.Contains("List<OperationRecord> _operationHistory", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("List<LocalizedMessage> _logMessages", code, StringComparison.Ordinal);
         Assert.Contains("ApplyLocalizedText", code, StringComparison.Ordinal);
         Assert.Contains("RenderLocalizedState", code, StringComparison.Ordinal);
         Assert.Contains("RenderLog", code, StringComparison.Ordinal);
@@ -90,6 +91,37 @@ public sealed class LinuxDesktopProjectTests
     }
 
     [Fact]
+    public void Avalonia_uses_shared_persistent_history_and_backup_services()
+    {
+        string projectDirectory = Path.Combine(
+            FindRepoRoot(),
+            "src",
+            "ScrapMechanicModManager.Desktop");
+        string xaml = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml"));
+        string code = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml.cs"));
+
+        Assert.Contains("x:Name=\"RobotLootBackupStatusText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BeehiveAutomationBackupStatusText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"FreezerAutomationBackupStatusText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("JsonLinesOperationJournal _operationJournal", code, StringComparison.Ordinal);
+        Assert.Contains("BackupSnapshotCatalog _backupCatalog", code, StringComparison.Ordinal);
+        Assert.Contains("OperationHistoryPath", code, StringComparison.Ordinal);
+        Assert.Contains("\"logs\", \"operations.jsonl\"", code, StringComparison.Ordinal);
+        Assert.Contains("LoadOperationHistoryAsync", code, StringComparison.Ordinal);
+        Assert.Contains("RenderBackupStatuses();", code, StringComparison.Ordinal);
+        Assert.True(
+            CountOccurrences(code, "await RefreshBackupStatusesAsync();") >= 5,
+            "Backup status must refresh at startup and after check, install, restore, and game-root changes.");
+        Assert.Contains("Task.Run(", code, StringComparison.Ordinal);
+        Assert.Contains("LocalizedMessage.FromPersisted(", code, StringComparison.Ordinal);
+        Assert.Contains("OperationSeverity.Error", code, StringComparison.Ordinal);
+        Assert.Contains("TechnicalErrorType =", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("_logTimestamps", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonDocument", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SnapshotMetadata", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Avalonia_reports_precise_executable_version_failures()
     {
         string code = File.ReadAllText(Path.Combine(
@@ -104,6 +136,18 @@ public sealed class LinuxDesktopProjectTests
         Assert.Contains("catch (InvalidDataException)", code, StringComparison.Ordinal);
         Assert.Contains("TextKey.ErrorGameVersionUnavailable", code, StringComparison.Ordinal);
         Assert.Contains("error.GetType().Name", code, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        int count = 0;
+        int index = 0;
+        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+        return count;
     }
 
     private static string FindRepoRoot()
