@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 using ScrapMechanicModManager.Core.Installation;
@@ -118,12 +119,16 @@ public sealed class MainForm : Form
         _settings = _settingsStore.Load();
         _localizer.Language = _settings.Language;
 
+        string informationalVersion = typeof(MainForm).Assembly
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? "0.2.0-preview.6";
+        string appVersion = informationalVersion.Split('+', 2)[0];
+        string? releaseTag = ReleaseChannel.GetReleaseTag(appVersion);
         _releaseClient = new GitHubReleaseClient(
             _httpClient,
             RepositoryOwner,
-            RepositoryName);
-        string appVersion = typeof(MainForm).Assembly.GetName().Version?.ToString(3)
-            ?? "0.2.0-preview.5";
+            RepositoryName,
+            releaseTag);
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager", appVersion));
 

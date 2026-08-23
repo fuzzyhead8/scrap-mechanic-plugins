@@ -21,11 +21,15 @@ public sealed class GitHubReleaseClient
     public GitHubReleaseClient(
         HttpClient httpClient,
         string owner,
-        string repository)
+        string repository,
+        string? releaseTag = null)
     {
         _httpClient = httpClient;
+        string releasePath = string.IsNullOrWhiteSpace(releaseTag)
+            ? "latest"
+            : $"tags/{Uri.EscapeDataString(releaseTag)}";
         _latestReleaseUrl =
-            $"https://api.github.com/repos/{owner}/{repository}/releases/latest";
+            $"https://api.github.com/repos/{owner}/{repository}/releases/{releasePath}";
     }
 
     public async Task<ResolvedModuleRelease> GetLatestModuleReleaseAsync(
