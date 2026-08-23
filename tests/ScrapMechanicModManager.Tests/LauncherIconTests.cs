@@ -71,6 +71,35 @@ public sealed class LauncherIconTests
     }
 
     [Fact]
+    public void Launcher_notifies_Explorer_to_refresh_only_its_own_executable_icon()
+    {
+        string repoRoot = FindRepoRoot();
+        string program = File.ReadAllText(Path.Combine(
+            repoRoot,
+            "src",
+            "ScrapMechanicModManager",
+            "Program.cs"));
+        string refresher = File.ReadAllText(Path.Combine(
+            repoRoot,
+            "src",
+            "ScrapMechanicModManager",
+            "WindowsShellIconRefresher.cs"));
+
+        Assert.Contains(
+            "WindowsShellIconRefresher.RefreshCurrentExecutable();",
+            program,
+            StringComparison.Ordinal);
+        Assert.Contains("Application.ExecutablePath", refresher, StringComparison.Ordinal);
+        Assert.Contains("ShellChangeEvent.UpdateItem", refresher, StringComparison.Ordinal);
+        Assert.Contains(
+            "ShellChangeFlags.PathW | ShellChangeFlags.FlushNoWait",
+            refresher,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellChangeFlags.Flush,", refresher, StringComparison.Ordinal);
+        Assert.DoesNotContain("AssociationChanged", refresher, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Main_window_uses_the_embedded_executable_icon()
     {
         string mainFormPath = Path.Combine(
