@@ -67,7 +67,7 @@ Create release assets:
 
 ```powershell
 ./scripts/New-ReleasePayload.ps1 `
-  -Version 0.2.0-preview.8 `
+  -Version 0.2.0-preview.9 `
   -OutputDirectory artifacts/release
 ```
 
@@ -75,7 +75,7 @@ Create release assets:
 
 1. Verify modified gameplay files in a live game.
 2. Update `distribution/supported-builds.txt` when required.
-3. Create a version tag such as `v0.2.0-preview.8`.
+3. Create a version tag such as `v0.2.0-preview.9`.
 4. `.github/workflows/release.yml` builds the Windows EXE, Linux `tar.gz`, `manifest.json`, and payload ZIP.
 5. Stable clients query the GitHub latest-release API. Prereleases do not replace the stable latest channel.
 
