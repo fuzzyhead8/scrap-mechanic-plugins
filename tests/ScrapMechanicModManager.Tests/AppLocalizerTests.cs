@@ -86,6 +86,28 @@ public sealed class AppLocalizerTests
     }
 
     [Fact]
+    public void Optional_module_controls_have_typed_Hungarian_and_English_text()
+    {
+        var hungarian = new AppLocalizer(AppLanguage.Hungarian);
+        var english = new AppLocalizer(AppLanguage.English);
+
+        Assert.Equal(
+            "Kijelölt modul visszaállítása",
+            hungarian.Get(TextKey.ButtonRestoreSelectedModules));
+        Assert.Equal(
+            "Beehive Automation",
+            english.Get(TextKey.ModuleBeehiveAutomation));
+        Assert.Contains(
+            "selected modules",
+            english.Get(TextKey.ErrorNoModulesSelected),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "latest release",
+            english.Get(TextKey.ModuleStatusUnavailable),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Every_text_key_has_nonempty_Hungarian_and_English_translation()
     {
         foreach (TextKey key in Enum.GetValues<TextKey>())
@@ -119,8 +141,20 @@ public sealed class AppLocalizerTests
             TextKey.ButtonCheck,
             TextKey.ButtonInstallUpdate,
             TextKey.ButtonRestore,
+            TextKey.ButtonRestoreSelectedModules,
             TextKey.ButtonLaunchGame,
             TextKey.CheckBoxDevMode,
+            TextKey.ModulesLabel,
+            TextKey.ModuleRobotLoot,
+            TextKey.ModuleBeehiveAutomation,
+            TextKey.ModuleFreezerAutomation,
+            TextKey.ModuleStatusNotChecked,
+            TextKey.ModuleStatusNotInstalled,
+            TextKey.ModuleStatusUnavailable,
+            TextKey.ModuleStatusUpToDate,
+            TextKey.ModuleStatusUpdateAvailable,
+            TextKey.ModuleStatusInstalled,
+            TextKey.ModuleStatusRestored,
             TextKey.LanguageLabel,
             TextKey.LanguageHungarian,
             TextKey.LanguageEnglish,
@@ -157,13 +191,21 @@ public sealed class AppLocalizerTests
             TextKey.LogError,
             TextKey.LogElevatedRestartCanceled,
             TextKey.LogLanguageChanged,
+            TextKey.LogModulePayloadDownload,
+            TextKey.LogSelectedModulesInstalled,
+            TextKey.LogModuleRestored,
             TextKey.DialogSelectGameRootTitle,
             TextKey.DialogRestoreBackupTitle,
             TextKey.DialogRestoreBackupMessage,
+            TextKey.DialogRestoreSelectedModulesTitle,
+            TextKey.DialogRestoreSelectedModulesMessage,
             TextKey.DialogAdministratorTitle,
             TextKey.DialogAdministratorRestartMessage,
             TextKey.DialogErrorTitle,
             TextKey.ErrorNoBackupSnapshot,
+            TextKey.ErrorNoModulesSelected,
+            TextKey.ErrorSelectedModulesUnavailable,
+            TextKey.ErrorNoSelectedModuleBackup,
             TextKey.ErrorSteamInstallNotReady,
             TextKey.ErrorInvalidAppManifestForSelectedFolder,
             TextKey.ErrorUnsafeManifestTarget,

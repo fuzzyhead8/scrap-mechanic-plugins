@@ -6,7 +6,6 @@ using Avalonia.Platform.Storage;
 using ScrapMechanicModManager.Core.Installation;
 using ScrapMechanicModManager.Core.Localization;
 using ScrapMechanicModManager.Core.Platform;
-using ScrapMechanicModManager.Core.Security;
 using ScrapMechanicModManager.Core.Settings;
 using ScrapMechanicModManager.Core.Steam;
 using ScrapMechanicModManager.Core.Updates;
@@ -32,6 +31,13 @@ public sealed partial class MainWindow : Window
     private readonly Button _restore;
     private readonly Button _launch;
     private readonly CheckBox _devMode;
+    private readonly TextBlock _modulesLabel;
+    private readonly CheckBox _robotLootModule;
+    private readonly CheckBox _beehiveAutomationModule;
+    private readonly CheckBox _freezerAutomationModule;
+    private readonly TextBlock _robotLootStatus;
+    private readonly TextBlock _beehiveAutomationStatus;
+    private readonly TextBlock _freezerAutomationStatus;
     private readonly TextBlock _gameStatus;
     private readonly TextBlock _modStatus;
     private readonly ProgressBar _progress;
@@ -42,8 +48,8 @@ public sealed partial class MainWindow : Window
     private readonly SteamLibraryLocator _steamLibraryLocator = new();
     private readonly GameInstallValidator _gameValidator = new();
     private readonly ExecutableVersionReader _versionReader = new();
-    private readonly HashService _hashService = new();
-    private readonly ModInstaller _installer = new();
+    private readonly ModuleStatusEvaluator _moduleStatusEvaluator = new();
+    private readonly ModuleInstallCoordinator _moduleInstaller = new();
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30),
@@ -57,6 +63,13 @@ public sealed partial class MainWindow : Window
     private ManagerSettings _settings = ManagerSettings.Default;
     private LocalizedMessage _gameStatusMessage = new(TextKey.GameStatusNotChecked);
     private LocalizedMessage _modStatusMessage = new(TextKey.ModStatusNotChecked);
+    private readonly Dictionary<string, LocalizedMessage> _moduleStatusMessages = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        [BuiltInModuleIds.RobotLoot] = new(TextKey.ModuleStatusNotChecked),
+        [BuiltInModuleIds.BeehiveAutomation] = new(TextKey.ModuleStatusNotChecked),
+        [BuiltInModuleIds.FreezerAutomation] = new(TextKey.ModuleStatusNotChecked),
+    };
     private SteamInstallation? _selectedInstallation;
     private bool _applyingLanguage;
 
@@ -82,6 +95,17 @@ public sealed partial class MainWindow : Window
         _restore = this.FindControl<Button>("RestoreButton")!;
         _launch = this.FindControl<Button>("LaunchButton")!;
         _devMode = this.FindControl<CheckBox>("DevModeCheckBox")!;
+        _modulesLabel = this.FindControl<TextBlock>("ModulesLabelText")!;
+        _robotLootModule = this.FindControl<CheckBox>("RobotLootModuleCheckBox")!;
+        _beehiveAutomationModule =
+            this.FindControl<CheckBox>("BeehiveAutomationModuleCheckBox")!;
+        _freezerAutomationModule =
+            this.FindControl<CheckBox>("FreezerAutomationModuleCheckBox")!;
+        _robotLootStatus = this.FindControl<TextBlock>("RobotLootModuleStatusText")!;
+        _beehiveAutomationStatus =
+            this.FindControl<TextBlock>("BeehiveAutomationModuleStatusText")!;
+        _freezerAutomationStatus =
+            this.FindControl<TextBlock>("FreezerAutomationModuleStatusText")!;
         _gameStatus = this.FindControl<TextBlock>("GameStatusText")!;
         _modStatus = this.FindControl<TextBlock>("ModStatusText")!;
         _progress = this.FindControl<ProgressBar>("ProgressBar")!;
@@ -89,6 +113,7 @@ public sealed partial class MainWindow : Window
 
         _settings = _settingsStore.Load();
         _localizer.Language = _settings.Language;
+        ApplySelectedModuleSettings();
         ApplyLocalizedText();
 
         _releaseClient = new GitHubReleaseClient(
@@ -126,7 +151,12 @@ public sealed partial class MainWindow : Window
 
     private async void OnRestoreClick(object? sender, RoutedEventArgs e)
     {
-        await RunBusyAsync(RestoreLatestAsync);
+        await RunBusyAsync(RestoreSelectedModulesAsync);
+    }
+
+    private async void OnModuleSelectionChanged(object? sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync(() => SaveCurrentSettingsAsync());
     }
 
     private async void OnLaunchClick(object? sender, RoutedEventArgs e)
@@ -207,70 +237,111 @@ public sealed partial class MainWindow : Window
         _selectedInstallation = null;
         SetGameStatus(TextKey.GameStatusPathProvidedNeedsCheck);
         SetModStatus(TextKey.ModStatusNotChecked);
+        foreach (string modId in BuiltInModuleIds.All)
+        {
+            SetModuleStatus(modId, TextKey.ModuleStatusNotChecked);
+        }
     }
 
     private async Task CheckForUpdatesAsync()
     {
-        (SteamInstallation installation, ResolvedRelease release, string productVersion) =
-            await ResolveAndValidateLatestAsync();
+        (SteamInstallation installation, ResolvedModuleRelease release, string productVersion) =
+            await ResolveAndValidateLatestModulesAsync();
 
-        bool allCurrent = true;
-        foreach (ModFileEntry file in release.Manifest.Files)
+        foreach (string modId in BuiltInModuleIds.All)
         {
-            string target = SafeGamePath(installation.GameRoot, file.Target);
-            if (!File.Exists(target)
-                || !await _hashService.VerifyFileAsync(
-                    target,
-                    file.Sha256,
-                    _lifetimeCancellation.Token))
+            SetModuleStatus(modId, TextKey.ModuleStatusUnavailable);
+        }
+
+        bool allCurrent = release.Modules.Count > 0;
+        foreach (ResolvedModule module in release.Modules)
+        {
+            ModuleInstallState state = await _moduleStatusEvaluator.EvaluateAsync(
+                installation.GameRoot,
+                BackupRoot,
+                module.Manifest,
+                _lifetimeCancellation.Token);
+            TextKey statusKey = state switch
             {
-                allCurrent = false;
-                break;
-            }
+                ModuleInstallState.UpToDate => TextKey.ModuleStatusUpToDate,
+                ModuleInstallState.UpdateAvailable => TextKey.ModuleStatusUpdateAvailable,
+                _ => TextKey.ModuleStatusNotInstalled,
+            };
+            SetModuleStatus(module.ModId, statusKey, module.Manifest.Version);
+            allCurrent &= state == ModuleInstallState.UpToDate;
         }
 
         SetGameStatus(TextKey.GameStatusReady, productVersion, installation.BuildId);
         SetModStatus(
             allCurrent ? TextKey.ModStatusUpToDate : TextKey.ModStatusUpdateAvailable,
-            release.Manifest.Version);
+            release.TagName);
         Log(TextKey.LogLatestRelease, release.TagName, installation.BuildId);
     }
 
     private async Task InstallLatestAsync()
     {
+        IReadOnlyList<string> selectedModuleIds = GetSelectedModuleIds();
+        if (selectedModuleIds.Count == 0)
+        {
+            throw new UserFacingException(TextKey.ErrorNoModulesSelected);
+        }
         EnsureGameIsNotRunning();
-        (SteamInstallation installation, ResolvedRelease release, _) =
-            await ResolveAndValidateLatestAsync();
+        (SteamInstallation installation, ResolvedModuleRelease release, _) =
+            await ResolveAndValidateLatestModulesAsync(selectedModuleIds);
 
-        Directory.CreateDirectory(AppDataRoot);
-        string temporaryZip = Path.Combine(
-            Path.GetTempPath(),
-            $"smmm-{Guid.NewGuid():N}-{release.Manifest.PayloadAsset}");
+        IReadOnlyList<ResolvedModule> selectedModules = ModuleSelection.FilterAvailable(
+            release.Modules,
+            selectedModuleIds);
+        var temporaryZips = new List<string>();
+        var installRequests = new List<ModuleInstallRequest>();
         try
         {
-            Log(TextKey.LogPayloadDownload, release.PayloadDownloadUrl);
-            using HttpResponseMessage response = await _httpClient.GetAsync(
-                release.PayloadDownloadUrl,
-                HttpCompletionOption.ResponseHeadersRead,
-                _lifetimeCancellation.Token);
-            response.EnsureSuccessStatusCode();
-            await using (Stream source = await response.Content.ReadAsStreamAsync(
-                _lifetimeCancellation.Token))
-            await using (FileStream destination = File.Create(temporaryZip))
+            foreach (ResolvedModule module in selectedModules)
             {
-                await source.CopyToAsync(destination, _lifetimeCancellation.Token);
+                string temporaryZip = Path.Combine(
+                    Path.GetTempPath(),
+                    $"smmm-{Guid.NewGuid():N}-{module.Manifest.PayloadAsset}");
+                temporaryZips.Add(temporaryZip);
+                Log(
+                    TextKey.LogModulePayloadDownload,
+                    GetModuleDisplayName(module.ModId),
+                    module.PayloadDownloadUrl);
+                using HttpResponseMessage response = await _httpClient.GetAsync(
+                    module.PayloadDownloadUrl,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    _lifetimeCancellation.Token);
+                response.EnsureSuccessStatusCode();
+                await using (Stream source = await response.Content.ReadAsStreamAsync(
+                    _lifetimeCancellation.Token))
+                await using (FileStream destination = File.Create(temporaryZip))
+                {
+                    await source.CopyToAsync(destination, _lifetimeCancellation.Token);
+                }
+                installRequests.Add(new ModuleInstallRequest(
+                    temporaryZip,
+                    module.Manifest));
             }
 
             EnsureGameIsNotRunning();
-            InstallResult result = await _installer.InstallAsync(
+            InstallResult result = await _moduleInstaller.InstallAsync(
                 installation.GameRoot,
-                temporaryZip,
-                release.Manifest,
+                installRequests,
                 BackupRoot,
                 _lifetimeCancellation.Token);
             await SaveCurrentSettingsAsync(installation.GameRoot);
-            SetModStatus(TextKey.ModStatusInstalled, release.Manifest.Version);
-            Log(TextKey.LogInstalledFiles, result.InstalledFileCount);
+            foreach (ResolvedModule module in selectedModules)
+            {
+                SetModuleStatus(
+                    module.ModId,
+                    TextKey.ModuleStatusInstalled,
+                    module.Manifest.Version);
+            }
+            SetModStatus(TextKey.ModStatusInstalled, release.TagName);
+            Log(
+                TextKey.LogSelectedModulesInstalled,
+                string.Join(", ", selectedModules.Select(module =>
+                    GetModuleDisplayName(module.ModId))),
+                result.InstalledFileCount);
             Log(TextKey.LogBackupDirectory, result.BackupDirectory);
             if (result.CacheBundleInvalidated)
             {
@@ -285,47 +356,77 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            if (File.Exists(temporaryZip))
+            foreach (string temporaryZip in temporaryZips)
             {
-                File.Delete(temporaryZip);
+                if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
             }
         }
     }
 
-    private async Task RestoreLatestAsync()
+    private async Task RestoreSelectedModulesAsync()
     {
+        IReadOnlyList<string> selectedModuleIds = GetSelectedModuleIds();
+        if (selectedModuleIds.Count == 0)
+        {
+            throw new UserFacingException(TextKey.ErrorNoModulesSelected);
+        }
         EnsureGameIsNotRunning();
         SteamInstallation installation = ResolveSelectedInstallation(RequireGameRoot());
-        string? latestSnapshot = Directory.Exists(BackupRoot)
-            ? Directory.GetDirectories(BackupRoot)
-                .Where(path => File.Exists(Path.Combine(path, ".snapshot.json")))
-                .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
-                .FirstOrDefault()
-            : null;
-        if (latestSnapshot is null)
+        var snapshots = new List<(string ModId, string Directory)>();
+        foreach (string modId in selectedModuleIds)
         {
-            throw new UserFacingException(TextKey.ErrorNoBackupSnapshot);
+            string? snapshot = _moduleInstaller.FindLatestSnapshotForModule(
+                BackupRoot,
+                modId);
+            if (snapshot is null)
+            {
+                throw new UserFacingException(
+                    TextKey.ErrorNoSelectedModuleBackup,
+                    GetModuleDisplayName(modId));
+            }
+            snapshots.Add((modId, snapshot));
         }
 
+        string moduleList = string.Join(
+            Environment.NewLine,
+            snapshots.Select(snapshot => "• " + GetModuleDisplayName(snapshot.ModId)));
         bool confirmed = await ShowConfirmationAsync(
-            TextKey.DialogRestoreBackupTitle,
-            TextKey.DialogRestoreBackupMessage,
+            TextKey.DialogRestoreSelectedModulesTitle,
+            TextKey.DialogRestoreSelectedModulesMessage,
             TextKey.DialogButtonRestore,
-            latestSnapshot);
+            moduleList);
         if (!confirmed)
         {
             return;
         }
 
-        bool cacheBundleInvalidated = await _installer.RestoreAsync(
-            installation.GameRoot,
-            latestSnapshot,
-            _lifetimeCancellation.Token);
-        SetModStatus(TextKey.ModStatusBackupRestored);
-        Log(TextKey.LogBackupRestored, latestSnapshot);
-        if (cacheBundleInvalidated)
+        try
         {
-            Log(TextKey.LogScriptCacheInvalidated);
+            bool cacheBundleInvalidated = false;
+            foreach ((string modId, string snapshotDirectory) in snapshots)
+            {
+                cacheBundleInvalidated |= await _moduleInstaller.RestoreModuleAsync(
+                    installation.GameRoot,
+                    snapshotDirectory,
+                    modId,
+                    _lifetimeCancellation.Token);
+                SetModuleStatus(modId, TextKey.ModuleStatusRestored);
+                Log(
+                    TextKey.LogModuleRestored,
+                    GetModuleDisplayName(modId),
+                    snapshotDirectory);
+            }
+            SetModStatus(TextKey.ModStatusBackupRestored);
+            if (cacheBundleInvalidated)
+            {
+                Log(TextKey.LogScriptCacheInvalidated);
+            }
+        }
+        catch (UnauthorizedAccessException error)
+        {
+            throw new UserFacingException(
+                TextKey.ErrorSteamGameDirectoryNotWritable,
+                error);
         }
     }
 
@@ -345,12 +446,37 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task<(SteamInstallation Installation, ResolvedRelease Release, string ProductVersion)>
-        ResolveAndValidateLatestAsync()
+    private async Task<(
+        SteamInstallation Installation,
+        ResolvedModuleRelease Release,
+        string ProductVersion)> ResolveAndValidateLatestModulesAsync(
+            IReadOnlyCollection<string>? requiredModuleIds = null)
     {
         SteamInstallation installation = ResolveSelectedInstallation(RequireGameRoot());
-        ResolvedRelease release = await _releaseClient.GetLatestReleaseAsync(
+        ResolvedModuleRelease release = await _releaseClient.GetLatestModuleReleaseAsync(
             _lifetimeCancellation.Token);
+        IReadOnlyList<ResolvedModule> validationModules = release.Modules;
+        if (requiredModuleIds is { Count: > 0 })
+        {
+            var availableIds = new HashSet<string>(
+                release.Modules.Select(module => module.ModId),
+                StringComparer.OrdinalIgnoreCase);
+            string[] unavailableIds = requiredModuleIds
+                .Where(modId => !availableIds.Contains(modId))
+                .ToArray();
+            if (unavailableIds.Length > 0)
+            {
+                throw new UserFacingException(
+                    TextKey.ErrorSelectedModulesUnavailable,
+                    string.Join(", ", unavailableIds.Select(GetModuleDisplayName)));
+            }
+
+            validationModules = ModuleSelection.FilterAvailable(
+                release.Modules,
+                requiredModuleIds);
+        }
+
+        string[] commonSupportedBuildIds = GetCommonSupportedBuildIds(validationModules);
         string executable = Path.Combine(
             installation.GameRoot,
             "Release",
@@ -360,7 +486,7 @@ public sealed partial class MainWindow : Window
             installation.GameRoot,
             productVersion,
             installation.BuildId,
-            release.Manifest.SupportedBuildIds);
+            commonSupportedBuildIds);
         if (!string.Equals(installation.StateFlags, "4", StringComparison.Ordinal))
         {
             throw new UserFacingException(
@@ -375,6 +501,21 @@ public sealed partial class MainWindow : Window
         _selectedInstallation = installation;
         await SaveCurrentSettingsAsync(installation.GameRoot);
         return (installation, release, productVersion);
+    }
+
+    private static string[] GetCommonSupportedBuildIds(
+        IReadOnlyList<ResolvedModule> modules)
+    {
+        if (modules.Count == 0) return [];
+
+        var commonBuildIds = new HashSet<string>(
+            modules[0].Manifest.SupportedBuildIds,
+            StringComparer.Ordinal);
+        foreach (ResolvedModule module in modules.Skip(1))
+        {
+            commonBuildIds.IntersectWith(module.Manifest.SupportedBuildIds);
+        }
+        return commonBuildIds.ToArray();
     }
 
     private SteamInstallation ResolveSelectedInstallation(string gameRoot)
@@ -446,26 +587,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static string SafeGamePath(string gameRoot, string relativePath)
-    {
-        if (!ModManifest.IsSafeRelativePath(relativePath))
-        {
-            throw new UserFacingException(TextKey.ErrorUnsafeManifestTarget, relativePath);
-        }
-
-        string root = Path.GetFullPath(gameRoot) + Path.DirectorySeparatorChar;
-        string target = Path.GetFullPath(Path.Combine(
-            gameRoot,
-            relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!target.StartsWith(root, StringComparison.Ordinal))
-        {
-            throw new UserFacingException(
-                TextKey.ErrorManifestTargetEscapesGameRoot,
-                relativePath);
-        }
-        return target;
-    }
-
     private string RequireGameRoot()
     {
         string value = _gameRoot.Text?.Trim() ?? string.Empty;
@@ -524,6 +645,9 @@ public sealed partial class MainWindow : Window
         _install.IsEnabled = !busy;
         _restore.IsEnabled = !busy;
         _launch.IsEnabled = !busy;
+        _robotLootModule.IsEnabled = !busy;
+        _beehiveAutomationModule.IsEnabled = !busy;
+        _freezerAutomationModule.IsEnabled = !busy;
         _languageSelector.IsEnabled = !busy;
     }
 
@@ -562,9 +686,13 @@ public sealed partial class MainWindow : Window
         _browse.Content = _localizer.Get(TextKey.ButtonBrowse);
         _check.Content = _localizer.Get(TextKey.ButtonCheck);
         _install.Content = _localizer.Get(TextKey.ButtonInstallUpdate);
-        _restore.Content = _localizer.Get(TextKey.ButtonRestore);
+        _restore.Content = _localizer.Get(TextKey.ButtonRestoreSelectedModules);
         _launch.Content = _localizer.Get(TextKey.ButtonLaunchGame);
         _devMode.Content = _localizer.Get(TextKey.CheckBoxDevMode);
+        _modulesLabel.Text = _localizer.Get(TextKey.ModulesLabel);
+        _robotLootModule.Content = _localizer.Get(TextKey.ModuleRobotLoot);
+        _beehiveAutomationModule.Content = _localizer.Get(TextKey.ModuleBeehiveAutomation);
+        _freezerAutomationModule.Content = _localizer.Get(TextKey.ModuleFreezerAutomation);
         _languageLabel.Text = _localizer.Get(TextKey.LanguageLabel);
         _footer.Text = _localizer.Get(TextKey.LinuxPreviewFooter);
 
@@ -590,7 +718,72 @@ public sealed partial class MainWindow : Window
     {
         _gameStatus.Text = _gameStatusMessage.Render(_localizer);
         _modStatus.Text = _modStatusMessage.Render(_localizer);
+        RenderModuleStatuses();
         RenderLog();
+    }
+
+    private void ApplySelectedModuleSettings()
+    {
+        _robotLootModule.IsChecked = _settings.SelectedModuleIds.Contains(
+            BuiltInModuleIds.RobotLoot,
+            StringComparer.OrdinalIgnoreCase);
+        _beehiveAutomationModule.IsChecked = _settings.SelectedModuleIds.Contains(
+            BuiltInModuleIds.BeehiveAutomation,
+            StringComparer.OrdinalIgnoreCase);
+        _freezerAutomationModule.IsChecked = _settings.SelectedModuleIds.Contains(
+            BuiltInModuleIds.FreezerAutomation,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private IReadOnlyList<string> GetSelectedModuleIds()
+    {
+        var selected = new List<string>(3);
+        if (_robotLootModule.IsChecked == true)
+        {
+            selected.Add(BuiltInModuleIds.RobotLoot);
+        }
+        if (_beehiveAutomationModule.IsChecked == true)
+        {
+            selected.Add(BuiltInModuleIds.BeehiveAutomation);
+        }
+        if (_freezerAutomationModule.IsChecked == true)
+        {
+            selected.Add(BuiltInModuleIds.FreezerAutomation);
+        }
+        return selected;
+    }
+
+    private string GetModuleDisplayName(string modId) => modId switch
+    {
+        BuiltInModuleIds.RobotLoot => _localizer.Get(TextKey.ModuleRobotLoot),
+        BuiltInModuleIds.BeehiveAutomation =>
+            _localizer.Get(TextKey.ModuleBeehiveAutomation),
+        BuiltInModuleIds.FreezerAutomation =>
+            _localizer.Get(TextKey.ModuleFreezerAutomation),
+        _ => modId,
+    };
+
+    private void SetModuleStatus(
+        string modId,
+        TextKey key,
+        params object?[] arguments)
+    {
+        if (!_moduleStatusMessages.ContainsKey(modId)) return;
+
+        _moduleStatusMessages[modId] = new LocalizedMessage(key, arguments);
+        RenderModuleStatuses();
+    }
+
+    private void RenderModuleStatuses()
+    {
+        _robotLootStatus.Text = _moduleStatusMessages[BuiltInModuleIds.RobotLoot]
+            .Render(_localizer);
+        _beehiveAutomationStatus.Text =
+            _moduleStatusMessages[BuiltInModuleIds.BeehiveAutomation]
+                .Render(_localizer);
+        _freezerAutomationStatus.Text =
+            _moduleStatusMessages[BuiltInModuleIds.FreezerAutomation]
+                .Render(_localizer);
     }
 
     private void SetGameStatus(TextKey key, params object?[] arguments)
@@ -635,7 +828,10 @@ public sealed partial class MainWindow : Window
                 ? _settings.GameRoot
                 : _gameRoot.Text.Trim();
         }
-        _settings = new ManagerSettings(currentRoot, _localizer.Language);
+        _settings = new ManagerSettings(
+            currentRoot,
+            _localizer.Language,
+            GetSelectedModuleIds());
         await _settingsStore.SaveAsync(_settings, _lifetimeCancellation.Token);
     }
 

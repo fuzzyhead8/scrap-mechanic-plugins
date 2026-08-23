@@ -96,7 +96,8 @@ public sealed class ManagerSettingsStore
             $"{Path.GetFileName(_settingsPath)}.{Guid.NewGuid():N}.tmp");
         var stored = new StoredSettings(
             settings.GameRoot,
-            settings.Language == AppLanguage.English ? "english" : "hungarian");
+            settings.Language == AppLanguage.English ? "english" : "hungarian",
+            settings.SelectedModuleIds);
 
         try
         {
@@ -134,8 +135,12 @@ public sealed class ManagerSettingsStore
 
         return new ManagerSettings(
             string.IsNullOrWhiteSpace(stored.GameRoot) ? null : stored.GameRoot,
-            AppLocalizer.ParseLanguage(stored.Language));
+            AppLocalizer.ParseLanguage(stored.Language),
+            stored.SelectedModuleIds);
     }
 
-    private sealed record StoredSettings(string? GameRoot, string? Language);
+    private sealed record StoredSettings(
+        string? GameRoot,
+        string? Language,
+        IReadOnlyList<string>? SelectedModuleIds);
 }

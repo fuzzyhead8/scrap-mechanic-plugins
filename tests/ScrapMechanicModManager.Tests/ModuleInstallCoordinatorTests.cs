@@ -202,6 +202,60 @@ public sealed class ModuleInstallCoordinatorTests : IDisposable
         Assert.False(File.Exists(Path.Combine(gameRoot, CacheTarget)));
     }
 
+    [Fact]
+    public void Latest_snapshot_lookup_uses_module_metadata_and_ignores_legacy_snapshots()
+    {
+        string backupRoot = Path.Combine(_root, "backups");
+        string firstSnapshot = CreateSnapshotMetadata(
+            backupRoot,
+            "20260101-first",
+            "module-first");
+        CreateSnapshotMetadata(backupRoot, "20260102-second", "module-second");
+        CreateSnapshotMetadata(backupRoot, "20260103-legacy", modId: null);
+        string corruptSnapshot = Path.Combine(backupRoot, "20260104-corrupt");
+        Directory.CreateDirectory(corruptSnapshot);
+        File.WriteAllText(
+            Path.Combine(corruptSnapshot, ".snapshot.json"),
+            "{ \"files\": [null] }");
+        var coordinator = new ModuleInstallCoordinator();
+
+        string? match = coordinator.FindLatestSnapshotForModule(
+            backupRoot,
+            "module-first");
+        string? missing = coordinator.FindLatestSnapshotForModule(
+            backupRoot,
+            "module-missing");
+
+        Assert.Equal(firstSnapshot, match);
+        Assert.Null(missing);
+    }
+
+    private static string CreateSnapshotMetadata(
+        string backupRoot,
+        string snapshotName,
+        string? modId)
+    {
+        string snapshot = Path.Combine(backupRoot, snapshotName);
+        Directory.CreateDirectory(snapshot);
+        string modIdProperty = modId is null
+            ? string.Empty
+            : $"\"modId\": \"{modId}\",";
+        File.WriteAllText(
+            Path.Combine(snapshot, ".snapshot.json"),
+            $$"""
+            {
+              "files": [
+                {
+                  {{modIdProperty}}
+                  "target": "Survival/Scripts/example.lua",
+                  "hadOriginal": true
+                }
+              ]
+            }
+            """);
+        return snapshot;
+    }
+
     private ModuleInstallRequest CreateRequest(
         string modId,
         string zipName,
