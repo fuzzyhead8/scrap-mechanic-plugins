@@ -1,7 +1,7 @@
 {
     "schemaVersion":  1,
     "modId":  "scrap-mechanic-beehive-automation",
-    "version":  "0.2.0-preview.7",
+    "version":  "0.2.0-preview.8",
     "payloadAsset":  "beehive-automation.zip",
     "payloadSha256":  "674F2CB31AE6C143764C34B1A7CC313A88642792FF3650AC5A0BB8B55BEB9B11",
     "supportedBuildIds":  [
