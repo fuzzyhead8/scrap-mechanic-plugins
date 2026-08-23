@@ -13,40 +13,55 @@ public sealed record InstallResult(
 public sealed class ModInstaller(HashService? hashService = null)
 {
     private const string CoreDataBundleRelativePath = "Cache/Bundle/core_data.cbo";
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+    };
+
     private readonly HashService _hashService = hashService ?? new HashService();
 
-    public async Task<InstallResult> InstallAsync(
+    public Task<InstallResult> InstallAsync(
         string gameRoot,
         string payloadZipPath,
         ModManifest manifest,
         string backupRoot,
+        CancellationToken cancellationToken = default) =>
+        InstallModulesAsync(
+            gameRoot,
+            [new ModuleInstallRequest(payloadZipPath, manifest)],
+            backupRoot,
+            cancellationToken);
+
+    internal async Task<InstallResult> InstallModulesAsync(
+        string gameRoot,
+        IReadOnlyList<ModuleInstallRequest> modules,
+        string backupRoot,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<string> manifestErrors = manifest.Validate();
-        if (manifestErrors.Count > 0)
-        {
-            throw new InvalidDataException(
-                "The release manifest is invalid: " + string.Join("; ", manifestErrors));
-        }
-        if (manifest.Files.Any(file => TargetsGeneratedCacheDirectory(file.Target)))
-        {
-            throw new InvalidDataException(
-                "The generated Cache directory cannot be a payload target.");
-        }
+        ValidateModuleSet(modules);
         if (!Directory.Exists(gameRoot))
         {
             throw new DirectoryNotFoundException($"The game root does not exist: {gameRoot}");
         }
-        if (!File.Exists(payloadZipPath))
+
+        foreach (ModuleInstallRequest module in modules)
         {
-            throw new FileNotFoundException("The payload ZIP was not found.", payloadZipPath);
-        }
-        if (!await _hashService.VerifyFileAsync(
-                payloadZipPath,
-                manifest.PayloadSha256,
-                cancellationToken))
-        {
-            throw new InvalidDataException("Payload ZIP SHA-256 verification failed.");
+            if (!File.Exists(module.PayloadZipPath))
+            {
+                throw new FileNotFoundException(
+                    "The payload ZIP was not found.",
+                    module.PayloadZipPath);
+            }
+            if (!await _hashService.VerifyFileAsync(
+                    module.PayloadZipPath,
+                    module.Manifest.PayloadSha256,
+                    cancellationToken))
+            {
+                throw new InvalidDataException(
+                    $"Payload ZIP SHA-256 verification failed for {module.Manifest.ModId}.");
+            }
         }
 
         Directory.CreateDirectory(backupRoot);
@@ -57,14 +72,25 @@ public sealed class ModInstaller(HashService? hashService = null)
 
         try
         {
-            await StageAndValidateAsync(
-                payloadZipPath,
-                manifest,
-                stagingRoot,
-                cancellationToken);
+            var stagedModules = new List<StagedModule>(modules.Count);
+            for (int index = 0; index < modules.Count; index++)
+            {
+                ModuleInstallRequest module = modules[index];
+                string moduleStagingRoot = Path.Combine(stagingRoot, $"module-{index}");
+                Directory.CreateDirectory(moduleStagingRoot);
+                await StageAndValidateAsync(
+                    module.PayloadZipPath,
+                    module.Manifest,
+                    moduleStagingRoot,
+                    cancellationToken);
+                stagedModules.Add(new StagedModule(module, moduleStagingRoot));
+            }
 
+            string versionLabel = modules.Count == 1
+                ? modules[0].Manifest.Version
+                : $"modules-{modules[0].Manifest.Version}";
             string snapshotName =
-                $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}-{Sanitize(manifest.Version)}-{Guid.NewGuid():N}";
+                $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}-{Sanitize(versionLabel)}-{Guid.NewGuid():N}";
             if (snapshotName.Length > 80) snapshotName = snapshotName[..80];
             string snapshotRoot = Path.Combine(backupRoot, snapshotName);
             Directory.CreateDirectory(snapshotRoot);
@@ -74,20 +100,28 @@ public sealed class ModInstaller(HashService? hashService = null)
             bool cacheBundleInvalidated;
             try
             {
-                foreach (ModFileEntry file in manifest.Files)
+                foreach (ModuleInstallRequest module in modules)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    string targetPath = CombineSafe(gameRoot, file.Target);
-                    string? backupPath = null;
-                    bool hadOriginal = File.Exists(targetPath);
-                    if (hadOriginal)
+                    foreach (ModFileEntry file in module.Manifest.Files)
                     {
-                        backupPath = CombineSafe(snapshotRoot, file.Target);
-                        Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
-                        File.Copy(targetPath, backupPath, overwrite: false);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        string targetPath = CombineSafe(gameRoot, file.Target);
+                        string? backupPath = null;
+                        bool hadOriginal = File.Exists(targetPath);
+                        if (hadOriginal)
+                        {
+                            backupPath = CombineSafe(snapshotRoot, file.Target);
+                            Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+                            File.Copy(targetPath, backupPath, overwrite: false);
+                        }
+                        touchedTargets.Add((targetPath, backupPath));
+                        snapshotFiles.Add(new SnapshotFile
+                        {
+                            ModId = module.Manifest.ModId,
+                            Target = file.Target,
+                            HadOriginal = hadOriginal,
+                        });
                     }
-                    touchedTargets.Add((targetPath, backupPath));
-                    snapshotFiles.Add(new SnapshotFile(file.Target, hadOriginal));
                 }
 
                 string? cacheBundlePath = BackupCoreDataBundle(
@@ -95,26 +129,40 @@ public sealed class ModInstaller(HashService? hashService = null)
                     snapshotRoot,
                     CoreDataBundleRelativePath);
 
+                var metadata = new SnapshotMetadata
+                {
+                    SchemaVersion = 2,
+                    Modules = modules.Select(module => new SnapshotModule
+                    {
+                        ModId = module.Manifest.ModId,
+                        Version = module.Manifest.Version,
+                    }).ToArray(),
+                    Files = snapshotFiles,
+                };
                 await File.WriteAllTextAsync(
                     Path.Combine(snapshotRoot, ".snapshot.json"),
-                    JsonSerializer.Serialize(new SnapshotMetadata(snapshotFiles)),
+                    JsonSerializer.Serialize(metadata, SnapshotJsonOptions),
                     cancellationToken);
 
-                foreach (ModFileEntry file in manifest.Files)
+                foreach (StagedModule module in stagedModules)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    string stagedPath = CombineSafe(stagingRoot, file.Source);
-                    string targetPath = CombineSafe(gameRoot, file.Target);
-                    Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                    string temporaryTarget = targetPath + ".smmm-new-" + Guid.NewGuid().ToString("N");
-                    try
+                    foreach (ModFileEntry file in module.Request.Manifest.Files)
                     {
-                        File.Copy(stagedPath, temporaryTarget, overwrite: false);
-                        File.Move(temporaryTarget, targetPath, overwrite: true);
-                    }
-                    finally
-                    {
-                        if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        string stagedPath = CombineSafe(module.StagingRoot, file.Source);
+                        string targetPath = CombineSafe(gameRoot, file.Target);
+                        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                        string temporaryTarget =
+                            targetPath + ".smmm-new-" + Guid.NewGuid().ToString("N");
+                        try
+                        {
+                            File.Copy(stagedPath, temporaryTarget, overwrite: false);
+                            File.Move(temporaryTarget, targetPath, overwrite: true);
+                        }
+                        finally
+                        {
+                            if (File.Exists(temporaryTarget)) File.Delete(temporaryTarget);
+                        }
                     }
                 }
 
@@ -122,7 +170,8 @@ public sealed class ModInstaller(HashService? hashService = null)
             }
             catch
             {
-                foreach ((string target, string? backup) in touchedTargets.AsEnumerable().Reverse())
+                foreach ((string target, string? backup) in
+                         touchedTargets.AsEnumerable().Reverse())
                 {
                     if (backup is not null && File.Exists(backup))
                     {
@@ -134,12 +183,16 @@ public sealed class ModInstaller(HashService? hashService = null)
                         File.Delete(target);
                     }
                 }
+                if (Directory.Exists(snapshotRoot))
+                {
+                    Directory.Delete(snapshotRoot, recursive: true);
+                }
                 throw;
             }
 
             return new InstallResult(
                 snapshotRoot,
-                manifest.Files.Count,
+                modules.Sum(module => module.Manifest.Files.Count),
                 cacheBundleInvalidated);
         }
         finally
@@ -156,13 +209,130 @@ public sealed class ModInstaller(HashService? hashService = null)
         string snapshotDirectory,
         CancellationToken cancellationToken = default)
     {
+        SnapshotMetadata metadata = await LoadSnapshotMetadataAsync(
+            gameRoot,
+            snapshotDirectory,
+            cancellationToken);
+        return await RestoreFilesAsync(
+            gameRoot,
+            snapshotDirectory,
+            metadata.Files,
+            cancellationToken);
+    }
+
+    internal async Task<bool> RestoreModuleAsync(
+        string gameRoot,
+        string snapshotDirectory,
+        string modId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modId);
+        SnapshotMetadata metadata = await LoadSnapshotMetadataAsync(
+            gameRoot,
+            snapshotDirectory,
+            cancellationToken);
+        if (!metadata.Files.Any(file => !string.IsNullOrWhiteSpace(file.ModId)))
+        {
+            throw new InvalidDataException(
+                "Backup snapshot does not contain module metadata.");
+        }
+
+        SnapshotFile[] selectedFiles = metadata.Files
+            .Where(file => string.Equals(
+                file.ModId,
+                modId,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (selectedFiles.Length == 0)
+        {
+            throw new InvalidDataException(
+                $"Backup snapshot does not contain module {modId}.");
+        }
+
+        return await RestoreFilesAsync(
+            gameRoot,
+            snapshotDirectory,
+            selectedFiles,
+            cancellationToken);
+    }
+
+    private static void ValidateModuleSet(IReadOnlyList<ModuleInstallRequest> modules)
+    {
+        if (modules is null || modules.Count == 0)
+        {
+            throw new InvalidDataException("At least one module must be selected.");
+        }
+
+        var modIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string>? commonBuildIds = null;
+        foreach (ModuleInstallRequest? module in modules)
+        {
+            if (module is null)
+            {
+                throw new InvalidDataException("Module install request cannot be null.");
+            }
+
+            IReadOnlyList<string> manifestErrors = module.Manifest.Validate();
+            if (manifestErrors.Count > 0)
+            {
+                throw new InvalidDataException(
+                    "The release manifest is invalid: "
+                    + string.Join("; ", manifestErrors));
+            }
+            if (!modIds.Add(module.Manifest.ModId))
+            {
+                throw new InvalidDataException(
+                    $"Duplicate ModId: {module.Manifest.ModId}.");
+            }
+            if (commonBuildIds is null)
+            {
+                commonBuildIds = new HashSet<string>(
+                    module.Manifest.SupportedBuildIds,
+                    StringComparer.Ordinal);
+            }
+            else
+            {
+                commonBuildIds.IntersectWith(module.Manifest.SupportedBuildIds);
+            }
+            if (module.Manifest.Files.Any(file =>
+                    TargetsGeneratedCacheDirectory(file.Target)))
+            {
+                throw new InvalidDataException(
+                    "The generated Cache directory cannot be a payload target.");
+            }
+
+            foreach (ModFileEntry file in module.Manifest.Files)
+            {
+                string target = file.Target.Replace('\\', '/');
+                if (!targets.Add(target))
+                {
+                    throw new InvalidDataException(
+                        $"Duplicate Target path across modules: {file.Target}.");
+                }
+            }
+        }
+
+        if (commonBuildIds is null || commonBuildIds.Count == 0)
+        {
+            throw new InvalidDataException(
+                "Selected modules have no common supported Steam build.");
+        }
+    }
+
+    private static async Task<SnapshotMetadata> LoadSnapshotMetadataAsync(
+        string gameRoot,
+        string snapshotDirectory,
+        CancellationToken cancellationToken)
+    {
         if (!Directory.Exists(gameRoot))
         {
             throw new DirectoryNotFoundException($"The game root does not exist: {gameRoot}");
         }
         if (!Directory.Exists(snapshotDirectory))
         {
-            throw new DirectoryNotFoundException($"The backup snapshot does not exist: {snapshotDirectory}");
+            throw new DirectoryNotFoundException(
+                $"The backup snapshot does not exist: {snapshotDirectory}");
         }
 
         string metadataPath = Path.Combine(snapshotDirectory, ".snapshot.json");
@@ -170,13 +340,34 @@ public sealed class ModInstaller(HashService? hashService = null)
         {
             throw new InvalidDataException("Backup snapshot metadata is missing.");
         }
-        SnapshotMetadata metadata = JsonSerializer.Deserialize<SnapshotMetadata>(
-            await File.ReadAllTextAsync(metadataPath, cancellationToken))
-            ?? throw new InvalidDataException("Backup snapshot metadata is invalid.");
 
-        var restoreFiles = new List<(SnapshotFile Metadata, string Target, string? Backup)>();
-        foreach (SnapshotFile file in metadata.Files)
+        SnapshotMetadata metadata = JsonSerializer.Deserialize<SnapshotMetadata>(
+            await File.ReadAllTextAsync(metadataPath, cancellationToken),
+            SnapshotJsonOptions)
+            ?? throw new InvalidDataException("Backup snapshot metadata is invalid.");
+        if (metadata.Files is null)
         {
+            throw new InvalidDataException("Backup snapshot file metadata is missing.");
+        }
+        return metadata;
+    }
+
+    private static Task<bool> RestoreFilesAsync(
+        string gameRoot,
+        string snapshotDirectory,
+        IReadOnlyList<SnapshotFile> files,
+        CancellationToken cancellationToken)
+    {
+        var restoreFiles = new List<(SnapshotFile Metadata, string Target, string? Backup)>();
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (SnapshotFile file in files)
+        {
+            if (!targets.Add(file.Target.Replace('\\', '/')))
+            {
+                throw new InvalidDataException(
+                    $"Duplicate backup target: {file.Target}");
+            }
+
             string targetPath = CombineSafe(gameRoot, file.Target);
             string? backupPath = file.HadOriginal
                 ? CombineSafe(snapshotDirectory, file.Target)
@@ -228,7 +419,8 @@ public sealed class ModInstaller(HashService? hashService = null)
                 }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                string temporaryTarget = targetPath + ".smmm-restore-" + Guid.NewGuid().ToString("N");
+                string temporaryTarget =
+                    targetPath + ".smmm-restore-" + Guid.NewGuid().ToString("N");
                 try
                 {
                     File.Copy(backupPath!, temporaryTarget, overwrite: false);
@@ -244,7 +436,8 @@ public sealed class ModInstaller(HashService? hashService = null)
         }
         catch
         {
-            foreach ((string target, string? rollback, bool hadCurrent) in rollbackFiles.AsEnumerable().Reverse())
+            foreach ((string target, string? rollback, bool hadCurrent) in
+                     rollbackFiles.AsEnumerable().Reverse())
             {
                 if (hadCurrent && rollback is not null && File.Exists(rollback))
                 {
@@ -266,7 +459,7 @@ public sealed class ModInstaller(HashService? hashService = null)
             }
         }
 
-        return cacheBundleInvalidated;
+        return Task.FromResult(cacheBundleInvalidated);
     }
 
     private async Task StageAndValidateAsync(
@@ -380,6 +573,27 @@ public sealed class ModInstaller(HashService? hashService = null)
         value.Select(character =>
             Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
 
-    private sealed record SnapshotMetadata(IReadOnlyList<SnapshotFile> Files);
-    private sealed record SnapshotFile(string Target, bool HadOriginal);
+    private sealed record StagedModule(
+        ModuleInstallRequest Request,
+        string StagingRoot);
+
+    private sealed class SnapshotMetadata
+    {
+        public int SchemaVersion { get; init; }
+        public IReadOnlyList<SnapshotModule> Modules { get; init; } = [];
+        public IReadOnlyList<SnapshotFile> Files { get; init; } = [];
+    }
+
+    private sealed class SnapshotModule
+    {
+        public string ModId { get; init; } = string.Empty;
+        public string Version { get; init; } = string.Empty;
+    }
+
+    private sealed class SnapshotFile
+    {
+        public string? ModId { get; init; }
+        public string Target { get; init; } = string.Empty;
+        public bool HadOriginal { get; init; }
+    }
 }
