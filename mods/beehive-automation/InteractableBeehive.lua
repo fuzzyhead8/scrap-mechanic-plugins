@@ -9,6 +9,8 @@ local NumProduced = 1
 local MaximumStored = 20
 
 local LootSpawnHeightOffset = 0.8
+-- LootHarvestable renders hvs_loot 0.375 m above its origin.
+local LootVisualHeightOffset = 0.375
 local LootBubbleRadius = 0.3
 
 
@@ -87,8 +89,9 @@ function InteractableBeehive.sv_spawnPhysicalOutput( self )
     local stackSize = sm.item.getStackSize( ITEMS.obj_resource_beewax )
     while self.sv.saved.pendingPhysicalOutput > 0 do
         local quantity = math.min( stackSize, self.sv.saved.pendingPhysicalOutput )
-        local position = self.shape.worldPosition + ( self.shape.worldRotation * sm.vec3.new( 0, LootSpawnHeightOffset, 0 ) )
-        local rotation = self.shape.worldRotation * sm.vec3.getRotation( sm.vec3.new( 0, 1, 0 ), sm.vec3.new( 0, 0, -1 ) )
+        local desiredVisualPosition = self.shape.worldPosition + ( self.shape.worldRotation * sm.vec3.new( 0, LootSpawnHeightOffset, 0 ) )
+        local position = desiredVisualPosition - sm.vec3.new( 0, 0, LootVisualHeightOffset )
+        local rotation = sm.vec3.getRotation( sm.vec3.new( 0, 1, 0 ), sm.vec3.new( 0, 0, 1 ) )
         local loot = sm.harvestable.createHarvestable( hvs_loot, position, rotation )
         if not loot then
             return

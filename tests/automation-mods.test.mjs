@@ -42,6 +42,49 @@ test("Beehive creates real hvs_loot output for wax", async () => {
   );
 });
 
+test("Beehive compensates the vanilla loot visual height offset", async () => {
+  const source = await readModule(
+    "mods/beehive-automation/InteractableBeehive.lua",
+  );
+  const spawn = functionBody(
+    source,
+    "InteractableBeehive.sv_spawnPhysicalOutput",
+  );
+
+  assert.match(source, /local LootVisualHeightOffset = 0\.375/);
+  assert.match(
+    spawn,
+    /local desiredVisualPosition\s*=\s*self\.shape\.worldPosition\s*\+\s*\(\s*self\.shape\.worldRotation\s*\*\s*sm\.vec3\.new\(\s*0\s*,\s*LootSpawnHeightOffset\s*,\s*0\s*\)\s*\)/,
+    "Beehive loot must keep the intended visual point above the machine in local space",
+  );
+  assert.match(
+    spawn,
+    /local position\s*=\s*desiredVisualPosition\s*-\s*sm\.vec3\.new\(\s*0\s*,\s*0\s*,\s*LootVisualHeightOffset\s*\)/,
+    "Physical loot origin must compensate for LootHarvestable's global visual offset",
+  );
+});
+
+test("Beehive uses the vanilla upright loot collision rotation", async () => {
+  const source = await readModule(
+    "mods/beehive-automation/InteractableBeehive.lua",
+  );
+  const spawn = functionBody(
+    source,
+    "InteractableBeehive.sv_spawnPhysicalOutput",
+  );
+
+  assert.match(
+    spawn,
+    /local rotation\s*=\s*sm\.vec3\.getRotation\(\s*sm\.vec3\.new\(\s*0\s*,\s*1\s*,\s*0\s*\)\s*,\s*sm\.vec3\.new\(\s*0\s*,\s*0\s*,\s*1\s*\)\s*\)/,
+    "Physical loot collision must use the vanilla upright hvs_loot rotation",
+  );
+  assert.doesNotMatch(
+    spawn,
+    /self\.shape\.worldRotation\s*\*\s*sm\.vec3\.getRotation/,
+    "Machine rotation must not separate the vanilla loot hitbox from its visual",
+  );
+});
+
 test("Beehive queues committed production and splits wax by stack size", async () => {
   const source = await readModule(
     "mods/beehive-automation/InteractableBeehive.lua",

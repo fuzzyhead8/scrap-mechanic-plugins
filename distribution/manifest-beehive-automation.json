@@ -3,7 +3,7 @@
     "modId":  "scrap-mechanic-beehive-automation",
     "version":  "0.2.0-preview.9",
     "payloadAsset":  "beehive-automation.zip",
-    "payloadSha256":  "674F2CB31AE6C143764C34B1A7CC313A88642792FF3650AC5A0BB8B55BEB9B11",
+    "payloadSha256":  "7D4E66282B9A3B4408A5092C231868235BA201398055FFC654DD987992AF33FB",
     "supportedBuildIds":  [
                               "24529696"
                           ],
@@ -11,7 +11,7 @@
                   {
                       "source":  "beehive-automation/InteractableBeehive.lua",
                       "target":  "Survival/Scripts/game/interactables/InteractableBeehive.lua",
-                      "sha256":  "4E5E09D1666CBA7A8461627E90C2D7EAD4D69C1B1370BB23321E9DAAE3EAA1C7"
+                      "sha256":  "1497D9C3D6200588F515AD7B2DF897BF794E40F87E23ECB15C6E410150B1FFAB"
                   }
               ]
 }
