@@ -76,11 +76,11 @@
             BorderBrush="#20000000"
             BorderThickness="1">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto"
-            ColumnDefinitions="*,Auto"
+            ColumnDefinitions="*,Auto,Auto"
             RowSpacing="7"
             ColumnSpacing="18">
         <TextBlock Grid.Row="0"
-                   Grid.ColumnSpan="2"
+                   Grid.ColumnSpan="3"
                    x:Name="ModulesLabelText"
                    Classes="sectionTitle" />
         <CheckBox Grid.Row="1"
@@ -91,6 +91,10 @@
                    Grid.Column="1"
                    x:Name="RobotLootModuleStatusText"
                    Opacity="0.68" />
+        <TextBlock Grid.Row="1"
+                   Grid.Column="2"
+                   x:Name="RobotLootBackupStatusText"
+                   Opacity="0.68" />
         <CheckBox Grid.Row="2"
                   Grid.Column="0"
                   x:Name="BeehiveAutomationModuleCheckBox"
@@ -99,6 +103,10 @@
                    Grid.Column="1"
                    x:Name="BeehiveAutomationModuleStatusText"
                    Opacity="0.68" />
+        <TextBlock Grid.Row="2"
+                   Grid.Column="2"
+                   x:Name="BeehiveAutomationBackupStatusText"
+                   Opacity="0.68" />
         <CheckBox Grid.Row="3"
                   Grid.Column="0"
                   x:Name="FreezerAutomationModuleCheckBox"
@@ -106,6 +114,10 @@
         <TextBlock Grid.Row="3"
                    Grid.Column="1"
                    x:Name="FreezerAutomationModuleStatusText"
+                   Opacity="0.68" />
+        <TextBlock Grid.Row="3"
+                   Grid.Column="2"
+                   x:Name="FreezerAutomationBackupStatusText"
                    Opacity="0.68" />
       </Grid>
     </Border>
