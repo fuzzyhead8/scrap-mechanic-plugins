@@ -142,7 +142,7 @@ public sealed partial class MainWindow : Window
 
         string informationalVersion = typeof(MainWindow).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "0.2.0-preview.9";
+            .InformationalVersion ?? "0.2.0-preview.10";
         string appVersion = informationalVersion.Split('+', 2)[0];
         string? releaseTag = ReleaseChannel.GetReleaseTag(appVersion);
         _releaseClient = new GitHubReleaseClient(
