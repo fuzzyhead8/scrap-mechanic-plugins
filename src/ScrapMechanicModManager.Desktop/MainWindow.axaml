@@ -9,9 +9,9 @@
         Title="Scrap Mechanic Mod Manager"
         Icon="avares://ScrapMechanicModManager/Assets/ScrapMechanicModManager.png"
         Width="960"
-        Height="680"
+        Height="760"
         MinWidth="780"
-        MinHeight="560"
+        MinHeight="640"
         WindowStartupLocation="CenterScreen">
   <Window.Styles>
     <Style Selector="Button">
@@ -24,7 +24,7 @@
     </Style>
   </Window.Styles>
 
-  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="14">
+  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="14">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
       <StackPanel Grid.Column="0" Spacing="3">
         <TextBlock x:Name="HeaderText"
@@ -69,7 +69,48 @@
       </StackPanel>
     </Border>
 
-    <StackPanel Grid.Row="3"
+    <Border Grid.Row="3"
+            Padding="14"
+            CornerRadius="8"
+            Background="#0A000000"
+            BorderBrush="#20000000"
+            BorderThickness="1">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+            ColumnDefinitions="*,Auto"
+            RowSpacing="7"
+            ColumnSpacing="18">
+        <TextBlock Grid.Row="0"
+                   Grid.ColumnSpan="2"
+                   x:Name="ModulesLabelText"
+                   Classes="sectionTitle" />
+        <CheckBox Grid.Row="1"
+                  Grid.Column="0"
+                  x:Name="RobotLootModuleCheckBox"
+                  Click="OnModuleSelectionChanged" />
+        <TextBlock Grid.Row="1"
+                   Grid.Column="1"
+                   x:Name="RobotLootModuleStatusText"
+                   Opacity="0.68" />
+        <CheckBox Grid.Row="2"
+                  Grid.Column="0"
+                  x:Name="BeehiveAutomationModuleCheckBox"
+                  Click="OnModuleSelectionChanged" />
+        <TextBlock Grid.Row="2"
+                   Grid.Column="1"
+                   x:Name="BeehiveAutomationModuleStatusText"
+                   Opacity="0.68" />
+        <CheckBox Grid.Row="3"
+                  Grid.Column="0"
+                  x:Name="FreezerAutomationModuleCheckBox"
+                  Click="OnModuleSelectionChanged" />
+        <TextBlock Grid.Row="3"
+                   Grid.Column="1"
+                   x:Name="FreezerAutomationModuleStatusText"
+                   Opacity="0.68" />
+      </Grid>
+    </Border>
+
+    <StackPanel Grid.Row="4"
                 Orientation="Horizontal"
                 Spacing="9">
       <Button x:Name="CheckButton"
@@ -84,13 +125,13 @@
                 VerticalAlignment="Center" />
     </StackPanel>
 
-    <ProgressBar Grid.Row="4"
+    <ProgressBar Grid.Row="5"
                  x:Name="ProgressBar"
                  IsIndeterminate="True"
                  IsVisible="False"
                  Height="4" />
 
-    <TextBox Grid.Row="5"
+    <TextBox Grid.Row="6"
              x:Name="LogTextBox"
              AcceptsReturn="True"
              IsReadOnly="True"
@@ -105,7 +146,7 @@
              ScrollViewer.VerticalScrollBarVisibility="Auto"
              ScrollViewer.HorizontalScrollBarVisibility="Auto" />
 
-    <TextBlock Grid.Row="6"
+    <TextBlock Grid.Row="7"
                x:Name="FooterText"
                HorizontalAlignment="Right"
                Opacity="0.55"

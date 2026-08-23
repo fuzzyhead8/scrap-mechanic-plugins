@@ -16,6 +16,7 @@ public sealed class ManagerSettingsStoreTests : IDisposable
 
         Assert.Null(settings.GameRoot);
         Assert.Equal(AppLanguage.Hungarian, settings.Language);
+        Assert.Equal([BuiltInModuleIds.RobotLoot], settings.SelectedModuleIds);
     }
 
     [Fact]
@@ -53,6 +54,36 @@ public sealed class ManagerSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Selected_module_ids_round_trip_without_enabling_opt_in_modules()
+    {
+        var store = new ManagerSettingsStore(SettingsPath);
+        var expected = new ManagerSettings(
+            "D:/Steam/Scrap Mechanic",
+            AppLanguage.English,
+            [BuiltInModuleIds.RobotLoot, BuiltInModuleIds.BeehiveAutomation]);
+
+        await store.SaveAsync(expected);
+        ManagerSettings actual = await store.LoadAsync();
+
+        Assert.Equal(expected.GameRoot, actual.GameRoot);
+        Assert.Equal(expected.Language, actual.Language);
+        Assert.Equal(expected.SelectedModuleIds, actual.SelectedModuleIds);
+        Assert.DoesNotContain(BuiltInModuleIds.FreezerAutomation, actual.SelectedModuleIds);
+    }
+
+    [Fact]
+    public async Task Explicit_empty_module_selection_round_trips()
+    {
+        var store = new ManagerSettingsStore(SettingsPath);
+        var expected = new ManagerSettings(null, AppLanguage.Hungarian, []);
+
+        await store.SaveAsync(expected);
+        ManagerSettings actual = await store.LoadAsync();
+
+        Assert.Empty(actual.SelectedModuleIds);
+    }
+
+    [Fact]
     public async Task Legacy_game_root_settings_keep_the_path_and_default_to_Hungarian()
     {
         Directory.CreateDirectory(_temporaryRoot);
@@ -69,6 +100,7 @@ public sealed class ManagerSettingsStoreTests : IDisposable
 
         Assert.Equal("D:/Legacy/Scrap Mechanic", settings.GameRoot);
         Assert.Equal(AppLanguage.Hungarian, settings.Language);
+        Assert.Equal([BuiltInModuleIds.RobotLoot], settings.SelectedModuleIds);
     }
 
     [Fact]
@@ -92,7 +124,8 @@ public sealed class ManagerSettingsStoreTests : IDisposable
             """
             {
               "gameRoot": "D:/Steam/Scrap Mechanic",
-              "language": "klingon"
+              "language": "klingon",
+              "selectedModuleIds": ["beehive-automation"]
             }
             """);
         var store = new ManagerSettingsStore(SettingsPath);
@@ -101,6 +134,7 @@ public sealed class ManagerSettingsStoreTests : IDisposable
 
         Assert.Equal("D:/Steam/Scrap Mechanic", settings.GameRoot);
         Assert.Equal(AppLanguage.Hungarian, settings.Language);
+        Assert.Equal([BuiltInModuleIds.BeehiveAutomation], settings.SelectedModuleIds);
     }
 
     [Fact]

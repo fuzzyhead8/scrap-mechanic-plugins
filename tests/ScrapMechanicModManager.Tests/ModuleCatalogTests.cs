@@ -54,6 +54,24 @@ public sealed class ModuleCatalogTests
     }
 
     [Fact]
+    public void Module_selection_excludes_unchecked_available_modules()
+    {
+        ResolvedModule[] available =
+        [
+            Resolved("robot"),
+            Resolved("beehive"),
+            Resolved("freezer"),
+        ];
+
+        IReadOnlyList<ResolvedModule> selected = ModuleSelection.FilterAvailable(
+            available,
+            ["robot", "freezer"]);
+
+        Assert.Equal(["robot", "freezer"], selected.Select(module => module.ModId));
+        Assert.DoesNotContain(selected, module => module.ModId == "beehive");
+    }
+
+    [Fact]
     public async Task GitHub_client_resolves_catalog_manifests_and_payload_assets()
     {
         const string catalogUrl = "https://example.test/modules.json";
@@ -227,6 +245,18 @@ public sealed class ModuleCatalogTests
 
         Assert.Contains("Duplicate Target", error.Message, StringComparison.Ordinal);
     }
+
+    private static ResolvedModule Resolved(string modId) => new(
+        modId,
+        $"manifest-{modId}.json",
+        DefaultSelected: false,
+        new ModManifest
+        {
+            ModId = modId,
+            Version = "1.0.0",
+            PayloadAsset = $"{modId}.zip",
+        },
+        new Uri($"https://example.test/{modId}.zip"));
 
     private static ModuleCatalogEntry Entry(
         string modId,
