@@ -85,6 +85,73 @@ test("Beehive uses the vanilla upright loot collision rotation", async () => {
   );
 });
 
+test("Beehive consolidates overlapping physical wax before spawning a new stack", async () => {
+  const source = await readModule(
+    "mods/beehive-automation/InteractableBeehive.lua",
+  );
+  const collect = functionBody(
+    source,
+    "InteractableBeehive.sv_collectPhysicalOutput",
+  );
+  const spawn = functionBody(
+    source,
+    "InteractableBeehive.sv_spawnPhysicalOutput",
+  );
+
+  assert.match(
+    collect,
+    /sm\.physics\.getSphereContacts\(\s*position\s*,\s*LootMergeRadius\s*,/,
+    "Beehive must inspect existing harvestables at its exact output point",
+  );
+  assert.match(collect, /candidate\.uuid\s*==\s*hvs_loot/);
+  assert.match(
+    collect,
+    /publicData\.uuid\s*==\s*ITEMS\.obj_resource_beewax/,
+    "Only physical beeswax loot may be consolidated",
+  );
+  assert.match(
+    collect,
+    /sm\.vec3\.getDistance\(\s*candidate\.worldPosition\s*,\s*position\s*\)\s*<=\s*LootMergePositionTolerance/,
+    "Nearby unrelated wax must not be consolidated",
+  );
+  assert.match(collect, /not\s+publicData\.harvested/);
+  assert.match(
+    collect,
+    /quantity\s*=\s*quantity\s*\+\s*publicData\.quantity/,
+    "Every overlapping x1 loot must contribute to the replacement stack quantity",
+  );
+  assert.match(collect, /candidate\.publicData\.harvested\s*=\s*true/);
+  assert.match(collect, /candidate:destroy\(\)/);
+  assert.ok(
+    spawn.indexOf("self:sv_collectPhysicalOutput( position )") <
+      spawn.indexOf("sm.harvestable.createHarvestable"),
+    "Existing wax must be consolidated before the replacement stack is created",
+  );
+});
+
+test("Beehive does not rebuild a physical wax stack without new output", async () => {
+  const source = await readModule(
+    "mods/beehive-automation/InteractableBeehive.lua",
+  );
+  const spawn = functionBody(
+    source,
+    "InteractableBeehive.sv_spawnPhysicalOutput",
+  );
+
+  const noOutputGuard =
+    /if\s+self\.sv\.saved\.pendingPhysicalOutput\s*<=\s*0\s+then\s+return\s+end/;
+  assert.match(
+    spawn,
+    noOutputGuard,
+    "Existing loot must only be consolidated when freshly committed output is pending",
+  );
+  assert.ok(
+    spawn.search(noOutputGuard) <
+      spawn.indexOf("self:sv_collectPhysicalOutput( position )"),
+    "The no-output guard must run before scanning existing loot",
+  );
+});
+
 test("Beehive queues committed production and splits wax by stack size", async () => {
   const source = await readModule(
     "mods/beehive-automation/InteractableBeehive.lua",

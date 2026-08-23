@@ -11,6 +11,8 @@ local MaximumStored = 20
 local LootSpawnHeightOffset = 0.8
 -- LootHarvestable renders hvs_loot 0.375 m above its origin.
 local LootVisualHeightOffset = 0.375
+local LootMergeRadius = 1.0
+local LootMergePositionTolerance = 0.05
 local LootBubbleRadius = 0.3
 
 
@@ -85,12 +87,43 @@ function InteractableBeehive.sv_n_collect( self, args, player )
     end
 end
 
+function InteractableBeehive.sv_collectPhysicalOutput( self, position )
+    -- Rebuild loot from this exact output point so LootHarvestable can show "x N".
+    local quantity = self.sv.saved.pendingPhysicalOutput
+    local contacts = sm.physics.getSphereContacts( position, LootMergeRadius, self.shape.body:getWorld(), sm.physics.filter.harvestable )
+    for _, candidate in ipairs( contacts.harvestables or {} ) do
+        if sm.exists( candidate )
+            and candidate.uuid == hvs_loot
+            and sm.vec3.getDistance( candidate.worldPosition, position ) <= LootMergePositionTolerance then
+            local publicData = candidate.publicData
+            if publicData
+                and publicData.uuid == ITEMS.obj_resource_beewax
+                and type( publicData.quantity ) == "number"
+                and publicData.quantity > 0
+                and not publicData.harvested then
+                quantity = quantity + publicData.quantity
+                self.sv.saved.pendingPhysicalOutput = quantity
+                self.storage:save( self.sv.saved )
+                candidate.publicData.harvested = true
+                candidate:destroy()
+            end
+        end
+    end
+    return quantity
+end
+
 function InteractableBeehive.sv_spawnPhysicalOutput( self )
+    if self.sv.saved.pendingPhysicalOutput <= 0 then
+        return
+    end
+
+    local desiredVisualPosition = self.shape.worldPosition + ( self.shape.worldRotation * sm.vec3.new( 0, LootSpawnHeightOffset, 0 ) )
+    local position = desiredVisualPosition - sm.vec3.new( 0, 0, LootVisualHeightOffset )
+    self.sv.saved.pendingPhysicalOutput = self:sv_collectPhysicalOutput( position )
+
     local stackSize = sm.item.getStackSize( ITEMS.obj_resource_beewax )
     while self.sv.saved.pendingPhysicalOutput > 0 do
         local quantity = math.min( stackSize, self.sv.saved.pendingPhysicalOutput )
-        local desiredVisualPosition = self.shape.worldPosition + ( self.shape.worldRotation * sm.vec3.new( 0, LootSpawnHeightOffset, 0 ) )
-        local position = desiredVisualPosition - sm.vec3.new( 0, 0, LootVisualHeightOffset )
         local rotation = sm.vec3.getRotation( sm.vec3.new( 0, 1, 0 ), sm.vec3.new( 0, 0, 1 ) )
         local loot = sm.harvestable.createHarvestable( hvs_loot, position, rotation )
         if not loot then
