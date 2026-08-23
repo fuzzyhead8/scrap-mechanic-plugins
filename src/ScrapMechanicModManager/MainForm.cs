@@ -53,12 +53,12 @@ public sealed class MainForm : Form
     private readonly CheckBox _robotLootModule = new() { AutoSize = true };
     private readonly CheckBox _beehiveAutomationModule = new() { AutoSize = true };
     private readonly CheckBox _freezerAutomationModule = new() { AutoSize = true };
-    private readonly Label _robotLootStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _beehiveAutomationStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _freezerAutomationStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _robotLootBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _beehiveAutomationBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
-    private readonly Label _freezerAutomationBackupStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
+    private readonly Label _robotLootStatus = CreateModuleDetailLabel();
+    private readonly Label _beehiveAutomationStatus = CreateModuleDetailLabel();
+    private readonly Label _freezerAutomationStatus = CreateModuleDetailLabel();
+    private readonly Label _robotLootBackupStatus = CreateModuleDetailLabel();
+    private readonly Label _beehiveAutomationBackupStatus = CreateModuleDetailLabel();
+    private readonly Label _freezerAutomationBackupStatus = CreateModuleDetailLabel();
     private readonly Label _gameStatus = new() { AutoSize = true };
     private readonly Label _modStatus = new() { AutoSize = true };
     private readonly ProgressBar _progress = new()
@@ -235,25 +235,34 @@ public sealed class MainForm : Form
         var modulesPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
+            ColumnCount = 2,
             RowCount = 4,
             AutoSize = true,
             Padding = new Padding(0, 4, 0, 4),
         };
         modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
         modulesPanel.Controls.Add(_modulesLabel, 0, 0);
-        modulesPanel.SetColumnSpan(_modulesLabel, 3);
+        modulesPanel.SetColumnSpan(_modulesLabel, 2);
         modulesPanel.Controls.Add(_robotLootModule, 0, 1);
-        modulesPanel.Controls.Add(_robotLootStatus, 1, 1);
-        modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1);
+        modulesPanel.Controls.Add(
+            CreateModuleStatusPanel(_robotLootStatus, _robotLootBackupStatus),
+            1,
+            1);
         modulesPanel.Controls.Add(_beehiveAutomationModule, 0, 2);
-        modulesPanel.Controls.Add(_beehiveAutomationStatus, 1, 2);
-        modulesPanel.Controls.Add(_beehiveAutomationBackupStatus, 2, 2);
+        modulesPanel.Controls.Add(
+            CreateModuleStatusPanel(
+                _beehiveAutomationStatus,
+                _beehiveAutomationBackupStatus),
+            1,
+            2);
         modulesPanel.Controls.Add(_freezerAutomationModule, 0, 3);
-        modulesPanel.Controls.Add(_freezerAutomationStatus, 1, 3);
-        modulesPanel.Controls.Add(_freezerAutomationBackupStatus, 2, 3);
+        modulesPanel.Controls.Add(
+            CreateModuleStatusPanel(
+                _freezerAutomationStatus,
+                _freezerAutomationBackupStatus),
+            1,
+            3);
 
         var actions = new FlowLayoutPanel
         {
@@ -287,6 +296,38 @@ public sealed class MainForm : Form
         root.Controls.Add(_progress, 0, 6);
         root.Controls.Add(_log, 0, 7);
         Controls.Add(root);
+    }
+
+    private static Label CreateModuleDetailLabel() => new()
+    {
+        AutoSize = false,
+        AutoEllipsis = true,
+        Dock = DockStyle.Fill,
+        ForeColor = Color.DimGray,
+        Height = 20,
+        Margin = Padding.Empty,
+    };
+
+    private static TableLayoutPanel CreateModuleStatusPanel(
+        Label moduleStatus,
+        Label backupStatus)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        panel.Controls.Add(moduleStatus, 0, 0);
+        panel.Controls.Add(backupStatus, 0, 1);
+        return panel;
     }
 
     private void WireEvents()

@@ -70,6 +70,25 @@ public sealed class WinFormsLocalizationContractTests
     }
 
     [Fact]
+    public void WinForms_module_backup_statuses_are_width_constrained()
+    {
+        string source = File.ReadAllText(MainFormPath);
+
+        Assert.Contains("CreateModuleDetailLabel()", source, StringComparison.Ordinal);
+        Assert.Contains("AutoEllipsis = true", source, StringComparison.Ordinal);
+        Assert.Contains("AutoSize = false", source, StringComparison.Ordinal);
+        Assert.Contains("CreateModuleStatusPanel(", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "modulesPanel.SetColumnSpan(_modulesLabel, 2)",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1)",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WinForms_language_change_reapplies_all_visible_localized_state()
     {
         string source = File.ReadAllText(MainFormPath);
