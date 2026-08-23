@@ -21,6 +21,8 @@ The .NET 8 launchers:
 - download the manifest and payload from public GitHub Releases;
 - verify the ZIP and every installed file with SHA-256;
 - create timestamped backups before overwriting any game file;
+- show validated per-module backup availability without modifying or deleting snapshots;
+- retain structured operation history for 90 days, bounded to 10 MB;
 - invalidate `Cache/Bundle/core_data.cbo` only after backup, so updated Lua files load without requiring `-dev`;
 - use an original multi-resolution application icon inspired by Scrap Mechanic;
 - support restore and Steam game launch;
@@ -42,6 +44,8 @@ sudo apt install libx11-6 libice6 libsm6 libfontconfig1
 ```
 
 Linux support remains a preview until install, launch, gameplay, cache invalidation, and restore pass on a real Steam Proton system. Portable instructions are included in `distribution/linux/README-Linux.txt`.
+
+Operation history is stored under the platform local application-data directory as `ScrapMechanicModManager/logs/operations.jsonl` (`%LOCALAPPDATA%\ScrapMechanicModManager\logs\operations.jsonl` on Windows). History is compacted automatically; backup snapshots are never deleted automatically.
 
 ## Development commands
 
