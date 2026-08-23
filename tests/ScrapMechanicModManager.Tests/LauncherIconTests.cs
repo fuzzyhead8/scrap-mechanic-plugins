@@ -54,6 +54,23 @@ public sealed class LauncherIconTests
     }
 
     [Fact]
+    public void Release_publishes_a_versioned_launcher_to_avoid_stale_shell_icon_cache_keys()
+    {
+        string workflowPath = Path.Combine(
+            FindRepoRoot(),
+            ".github",
+            "workflows",
+            "release.yml");
+        string workflow = File.ReadAllText(workflowPath);
+
+        Assert.Contains("Prepare versioned Windows launcher", workflow);
+        Assert.Contains("ScrapMechanicModManager-$version.exe", workflow);
+        Assert.Contains(
+            "artifacts/release-windows/ScrapMechanicModManager-*.exe",
+            workflow);
+    }
+
+    [Fact]
     public void Main_window_uses_the_embedded_executable_icon()
     {
         string mainFormPath = Path.Combine(

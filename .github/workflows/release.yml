@@ -142,6 +142,15 @@ jobs:
             -Version $version `
             -OutputDirectory artifacts/release
 
+      - name: Prepare versioned Windows launcher
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          New-Item -ItemType Directory -Path artifacts/release-windows -Force | Out-Null
+          Copy-Item `
+            artifacts/download/windows-launcher/ScrapMechanicModManager.exe `
+            "artifacts/release-windows/ScrapMechanicModManager-$version.exe"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -149,6 +158,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             artifacts/download/windows-launcher/ScrapMechanicModManager.exe
+            artifacts/release-windows/ScrapMechanicModManager-*.exe
             artifacts/download/linux-launcher/ScrapMechanicModManager-linux-x64.tar.gz
             artifacts/release/modules.json
             artifacts/release/manifest.json
