@@ -235,34 +235,25 @@ public sealed class MainForm : Form
         var modulesPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 4,
             AutoSize = true,
             Padding = new Padding(0, 4, 0, 4),
         };
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+        modulesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
         modulesPanel.Controls.Add(_modulesLabel, 0, 0);
-        modulesPanel.SetColumnSpan(_modulesLabel, 2);
+        modulesPanel.SetColumnSpan(_modulesLabel, 3);
         modulesPanel.Controls.Add(_robotLootModule, 0, 1);
-        modulesPanel.Controls.Add(
-            CreateModuleStatusPanel(_robotLootStatus, _robotLootBackupStatus),
-            1,
-            1);
+        modulesPanel.Controls.Add(_robotLootStatus, 1, 1);
+        modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1);
         modulesPanel.Controls.Add(_beehiveAutomationModule, 0, 2);
-        modulesPanel.Controls.Add(
-            CreateModuleStatusPanel(
-                _beehiveAutomationStatus,
-                _beehiveAutomationBackupStatus),
-            1,
-            2);
+        modulesPanel.Controls.Add(_beehiveAutomationStatus, 1, 2);
+        modulesPanel.Controls.Add(_beehiveAutomationBackupStatus, 2, 2);
         modulesPanel.Controls.Add(_freezerAutomationModule, 0, 3);
-        modulesPanel.Controls.Add(
-            CreateModuleStatusPanel(
-                _freezerAutomationStatus,
-                _freezerAutomationBackupStatus),
-            1,
-            3);
+        modulesPanel.Controls.Add(_freezerAutomationStatus, 1, 3);
+        modulesPanel.Controls.Add(_freezerAutomationBackupStatus, 2, 3);
 
         var actions = new FlowLayoutPanel
         {
@@ -306,29 +297,8 @@ public sealed class MainForm : Form
         ForeColor = Color.DimGray,
         Height = 20,
         Margin = Padding.Empty,
+        TextAlign = ContentAlignment.MiddleLeft,
     };
-
-    private static TableLayoutPanel CreateModuleStatusPanel(
-        Label moduleStatus,
-        Label backupStatus)
-    {
-        var panel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-        };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
-        panel.Controls.Add(moduleStatus, 0, 0);
-        panel.Controls.Add(backupStatus, 0, 1);
-        return panel;
-    }
 
     private void WireEvents()
     {
@@ -1048,12 +1018,8 @@ public sealed class MainForm : Form
         };
         if (key == TextKey.ModuleBackupAvailable)
         {
-            CultureInfo culture = _localizer.Language == AppLanguage.Hungarian
-                ? CultureInfo.GetCultureInfo("hu-HU")
-                : CultureInfo.GetCultureInfo("en-US");
-            string localTimestamp = status.CreatedAtUtc!.Value
-                .ToLocalTime()
-                .ToString("g", culture);
+            string localTimestamp = _localizer.FormatShortLocalDateTime(
+                status.CreatedAtUtc!.Value);
             label.Text = _localizer.Get(key, localTimestamp);
             return;
         }

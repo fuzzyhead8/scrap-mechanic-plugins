@@ -70,22 +70,49 @@ public sealed class WinFormsLocalizationContractTests
     }
 
     [Fact]
-    public void WinForms_module_backup_statuses_are_width_constrained()
+    public void WinForms_module_statuses_use_one_width_constrained_row_per_module()
     {
         string source = File.ReadAllText(MainFormPath);
 
         Assert.Contains("CreateModuleDetailLabel()", source, StringComparison.Ordinal);
         Assert.Contains("AutoEllipsis = true", source, StringComparison.Ordinal);
         Assert.Contains("AutoSize = false", source, StringComparison.Ordinal);
-        Assert.Contains("CreateModuleStatusPanel(", source, StringComparison.Ordinal);
+        Assert.Contains("ColumnCount = 3", source, StringComparison.Ordinal);
         Assert.Contains(
-            "modulesPanel.SetColumnSpan(_modulesLabel, 2)",
+            "modulesPanel.SetColumnSpan(_modulesLabel, 3)",
             source,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
+        Assert.Contains(
+            "modulesPanel.Controls.Add(_robotLootStatus, 1, 1)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
             "modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1)",
             source,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateModuleStatusPanel(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WinForms_and_Linux_use_the_shared_short_backup_timestamp()
+    {
+        string winFormsSource = File.ReadAllText(MainFormPath);
+        string linuxSource = File.ReadAllText(Path.Combine(
+            FindRepoRoot(),
+            "src",
+            "ScrapMechanicModManager.Desktop",
+            "MainWindow.axaml.cs"));
+
+        Assert.Contains(
+            "_localizer.FormatShortLocalDateTime(",
+            winFormsSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_localizer.FormatShortLocalDateTime(",
+            linuxSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(".ToString(\"g\", culture)", winFormsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain(".ToString(\"g\", culture)", linuxSource, StringComparison.Ordinal);
     }
 
     [Fact]

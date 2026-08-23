@@ -245,6 +245,14 @@ public sealed class AppLocalizer
             : format;
     }
 
+    public string FormatShortLocalDateTime(DateTimeOffset timestamp)
+    {
+        string format = Language == AppLanguage.Hungarian
+            ? "yy.MM.dd. HH:mm"
+            : "MM/dd/yy HH:mm";
+        return timestamp.ToLocalTime().ToString(format, CultureInfo.InvariantCulture);
+    }
+
     public static AppLanguage ParseLanguage(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

@@ -898,12 +898,8 @@ public sealed partial class MainWindow : Window
         };
         if (key == TextKey.ModuleBackupAvailable)
         {
-            CultureInfo culture = _localizer.Language == AppLanguage.Hungarian
-                ? CultureInfo.GetCultureInfo("hu-HU")
-                : CultureInfo.GetCultureInfo("en-US");
-            string localTimestamp = status.CreatedAtUtc!.Value
-                .ToLocalTime()
-                .ToString("g", culture);
+            string localTimestamp = _localizer.FormatShortLocalDateTime(
+                status.CreatedAtUtc!.Value);
             textBlock.Text = _localizer.Get(key, localTimestamp);
             return;
         }

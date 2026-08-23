@@ -6,6 +6,7 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+        WindowsShellIconRefresher.RefreshCurrentExecutable();
         Application.Run(new MainForm());
     }
 }

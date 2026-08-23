@@ -72,6 +72,22 @@ public sealed class AppLocalizerTests
     }
 
     [Fact]
+    public void Backup_timestamp_keeps_the_year_in_a_short_language_specific_format()
+    {
+        DateTime localDateTime = new(2026, 8, 23, 16, 41, 0, DateTimeKind.Local);
+        var localTimestamp = new DateTimeOffset(localDateTime);
+        var hungarian = new AppLocalizer(AppLanguage.Hungarian);
+        var english = new AppLocalizer(AppLanguage.English);
+
+        Assert.Equal(
+            "26.08.23. 16:41",
+            hungarian.FormatShortLocalDateTime(localTimestamp));
+        Assert.Equal(
+            "08/23/26 16:41",
+            english.FormatShortLocalDateTime(localTimestamp));
+    }
+
+    [Fact]
     public void Unexpected_failure_keeps_a_localized_message_and_a_technical_code()
     {
         var hungarian = new AppLocalizer(AppLanguage.Hungarian);
