@@ -1,7 +1,7 @@
 {
     "schemaVersion":  1,
     "modId":  "scrap-mechanic-freezer-automation",
-    "version":  "0.2.0-preview.5",
+    "version":  "0.2.0-preview.6",
     "payloadAsset":  "freezer-automation.zip",
     "payloadSha256":  "962225CC639F1ABDB46140409F61D4BFFE7F1CF9981BEF68FBBA5AD4C3AAC666",
     "supportedBuildIds":  [
