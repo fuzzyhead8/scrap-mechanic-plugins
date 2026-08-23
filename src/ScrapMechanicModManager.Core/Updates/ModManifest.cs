@@ -62,7 +62,7 @@ public sealed partial class ModManifest
         return segments.Length > 0 && segments.All(segment => segment is not "." and not "..");
     }
 
-    private static bool IsSafeAssetName(string value) =>
+    public static bool IsSafeAssetName(string value) =>
         !string.IsNullOrWhiteSpace(value)
         && string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal)
         && !value.Contains("..");
