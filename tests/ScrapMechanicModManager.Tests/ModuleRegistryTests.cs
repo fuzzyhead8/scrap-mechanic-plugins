@@ -60,12 +60,12 @@ public sealed class ModuleRegistryTests
     [Fact]
     public void Localized_name_uses_the_requested_language_and_safe_fallback()
     {
-        var translated = new LocalizedModuleText("Magyar név", "English name");
-        var hungarianOnly = new LocalizedModuleText("Csak magyar", string.Empty);
+        var translated = new LocalizedModuleText("Hungarian name", "English name");
+        var hungarianOnly = new LocalizedModuleText("Hungarian only", string.Empty);
 
-        Assert.Equal("Magyar név", translated.Get(AppLanguage.Hungarian));
+        Assert.Equal("Hungarian name", translated.Get(AppLanguage.Hungarian));
         Assert.Equal("English name", translated.Get(AppLanguage.English));
-        Assert.Equal("Csak magyar", hungarianOnly.Get(AppLanguage.English));
+        Assert.Equal("Hungarian only", hungarianOnly.Get(AppLanguage.English));
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public sealed class ModuleRegistryTests
             SchemaVersion = 1,
             ModId = modId,
             Version = "1.0.0",
-            DisplayName = new LocalizedModuleText("Példa", "Example"),
-            Description = new LocalizedModuleText("Leírás", "Description"),
+            DisplayName = new LocalizedModuleText("Hungarian example", "Example"),
+            Description = new LocalizedModuleText("Hungarian description", "Description"),
             MinimumManagerVersion = "0.2.0",
             SupportedBuildIds = ["24529696"],
             Files =

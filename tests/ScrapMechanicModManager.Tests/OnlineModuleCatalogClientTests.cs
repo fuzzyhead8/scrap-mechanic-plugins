@@ -162,7 +162,7 @@ public sealed class OnlineModuleCatalogClientTests : IDisposable
                 modId,
                 version = "1.0.0",
                 displayName = new { hungarian = $"{modId} HU", english = $"{modId} EN" },
-                description = new { hungarian = "Leírás", english = "Description" },
+                description = new { hungarian = "Hungarian description", english = "Description" },
                 minimumManagerVersion = "0.2.0",
                 supportedBuildIds = new[] { "24529696" },
                 files = new[]

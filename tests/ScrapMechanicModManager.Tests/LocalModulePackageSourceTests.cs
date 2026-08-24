@@ -27,7 +27,7 @@ public sealed class LocalModulePackageSourceTests : IDisposable
         Assert.False(candidate.DefaultSelected);
         Assert.True(candidate.CanInstall);
         Assert.Matches("^[A-F0-9]{64}$", candidate.PackageSha256);
-        Assert.Equal("Példa mod", candidate.Definition.DisplayName.Hungarian);
+        Assert.Equal("Hungarian example", candidate.Definition.DisplayName.Hungarian);
         Assert.Equal("Example mod", candidate.Definition.DisplayName.English);
     }
 
@@ -119,8 +119,8 @@ public sealed class LocalModulePackageSourceTests : IDisposable
             schemaVersion = 1,
             modId,
             version = "1.0.0",
-            displayName = new { hungarian = "Példa mod", english = "Example mod" },
-            description = new { hungarian = "Leírás", english = "Description" },
+            displayName = new { hungarian = "Hungarian example", english = "Example mod" },
+            description = new { hungarian = "Hungarian description", english = "Description" },
             minimumManagerVersion = "0.2.0",
             supportedBuildIds = new[] { "24529696" },
             files = new[]
