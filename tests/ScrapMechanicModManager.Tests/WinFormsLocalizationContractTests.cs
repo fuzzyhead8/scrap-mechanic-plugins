@@ -19,25 +19,27 @@ public sealed class WinFormsLocalizationContractTests
     }
 
     [Fact]
-    public void WinForms_exposes_three_persistent_module_rows_and_selected_restore()
+    public void WinForms_renders_dynamic_online_and_local_module_rows()
     {
         string source = File.ReadAllText(MainFormPath);
 
-        Assert.Contains("CheckBox _robotLootModule", source, StringComparison.Ordinal);
-        Assert.Contains("CheckBox _beehiveAutomationModule", source, StringComparison.Ordinal);
-        Assert.Contains("CheckBox _freezerAutomationModule", source, StringComparison.Ordinal);
-        Assert.Contains("Label _robotLootStatus", source, StringComparison.Ordinal);
-        Assert.Contains("Label _beehiveAutomationStatus", source, StringComparison.Ordinal);
-        Assert.Contains("Label _freezerAutomationStatus", source, StringComparison.Ordinal);
-        Assert.Contains("ModuleInstallCoordinator _moduleInstaller", source, StringComparison.Ordinal);
-        Assert.Contains("GetLatestModuleReleaseAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CheckBox _robotLootModule", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CheckBox _beehiveAutomationModule", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("CheckBox _freezerAutomationModule", source, StringComparison.Ordinal);
+        Assert.Contains("Dictionary<string, ModuleRowControls> _moduleRows", source, StringComparison.Ordinal);
+        Assert.Contains("OnlineModuleCatalogClient _onlineCatalogClient", source, StringComparison.Ordinal);
+        Assert.Contains("LocalModulePackageSource _localModuleSource", source, StringComparison.Ordinal);
+        Assert.Contains("ModulePayloadAcquirer _payloadAcquirer", source, StringComparison.Ordinal);
+        Assert.Contains("RebuildModuleRows", source, StringComparison.Ordinal);
+        Assert.Contains("RefreshModuleRegistryAsync", source, StringComparison.Ordinal);
+        Assert.Contains("InstallCandidatesAsync", source, StringComparison.Ordinal);
         Assert.Contains("GetSelectedModuleIds", source, StringComparison.Ordinal);
-        Assert.Contains("ModuleSelection.FilterAvailable", source, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedModulesAsync", source, StringComparison.Ordinal);
-        Assert.Contains("SelectedModuleIds", source, StringComparison.Ordinal);
-        Assert.Contains("TextKey.ButtonRestoreSelectedModules", source, StringComparison.Ordinal);
-        Assert.Contains("AssemblyInformationalVersionAttribute", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseChannel.GetReleaseTag", source, StringComparison.Ordinal);
+        Assert.Contains("ModuleSourcePreferences", source, StringComparison.Ordinal);
+        Assert.Contains("TextKey.ButtonOpenModsFolder", source, StringComparison.Ordinal);
+        Assert.Contains("TextKey.ButtonRefreshModules", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetLatestModuleReleaseAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReleaseChannel.GetReleaseTag", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,9 +51,8 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("BackupSnapshotCatalog _backupCatalog", source, StringComparison.Ordinal);
         Assert.Contains("OperationHistoryPath", source, StringComparison.Ordinal);
         Assert.Contains("\"logs\", \"operations.jsonl\"", source, StringComparison.Ordinal);
-        Assert.Contains("Label _robotLootBackupStatus", source, StringComparison.Ordinal);
-        Assert.Contains("Label _beehiveAutomationBackupStatus", source, StringComparison.Ordinal);
-        Assert.Contains("Label _freezerAutomationBackupStatus", source, StringComparison.Ordinal);
+        Assert.Contains("ModuleBackupStatus> _moduleBackupStatuses", source, StringComparison.Ordinal);
+        Assert.Contains("row.BackupStatus", source, StringComparison.Ordinal);
         Assert.Contains("LoadOperationHistory();", source, StringComparison.Ordinal);
         Assert.Contains("RenderBackupStatuses();", source, StringComparison.Ordinal);
         Assert.True(
@@ -79,15 +80,15 @@ public sealed class WinFormsLocalizationContractTests
         Assert.Contains("AutoSize = false", source, StringComparison.Ordinal);
         Assert.Contains("ColumnCount = 3", source, StringComparison.Ordinal);
         Assert.Contains(
-            "modulesPanel.SetColumnSpan(_modulesLabel, 3)",
+            "_modulesPanel.SetColumnSpan(_modulesLabel, 3)",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "modulesPanel.Controls.Add(_robotLootStatus, 1, 1)",
+            "_modulesPanel.Controls.Add(status, 1, rowIndex)",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "modulesPanel.Controls.Add(_robotLootBackupStatus, 2, 1)",
+            "_modulesPanel.Controls.Add(backup, 2, rowIndex)",
             source,
             StringComparison.Ordinal);
         Assert.DoesNotContain("CreateModuleStatusPanel(", source, StringComparison.Ordinal);
