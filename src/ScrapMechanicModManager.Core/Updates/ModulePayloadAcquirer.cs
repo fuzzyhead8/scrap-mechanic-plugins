@@ -112,7 +112,7 @@ public sealed class ModulePayloadAcquirer
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
             response.EnsureSuccessStatusCode();
-            EnsureSafeDownloadUri(response.RequestMessage?.RequestUri ?? uri);
+            EnsureSafeResponseUri(response.RequestMessage?.RequestUri ?? uri);
             if (response.Content.Headers.ContentLength > _limits.MaxPackageBytes)
             {
                 throw new InvalidDataException(
@@ -172,15 +172,32 @@ public sealed class ModulePayloadAcquirer
 
     private static void EnsureSafeDownloadUri(Uri uri)
     {
-        if (uri.Scheme != Uri.UriSchemeHttps
+        if (!IsSafeUri(uri)
             || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)
             || !uri.AbsolutePath.Contains("/releases/download/", StringComparison.Ordinal)
-            || !uri.AbsolutePath.EndsWith(".smmmod", StringComparison.OrdinalIgnoreCase)
-            || !string.IsNullOrEmpty(uri.UserInfo)
-            || !string.IsNullOrEmpty(uri.Fragment))
+            || !uri.AbsolutePath.EndsWith(".smmmod", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
                 "Module package URL must be an HTTPS GitHub release download URL.");
         }
     }
+
+    private static void EnsureSafeResponseUri(Uri uri)
+    {
+        if (IsSafeUri(uri)
+            && (string.Equals(uri.Host, "release-assets.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+                && uri.AbsolutePath.StartsWith(
+                    "/github-production-release-asset/",
+                    StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        EnsureSafeDownloadUri(uri);
+    }
+
+    private static bool IsSafeUri(Uri uri) =>
+        uri.Scheme == Uri.UriSchemeHttps
+        && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Fragment);
 }
