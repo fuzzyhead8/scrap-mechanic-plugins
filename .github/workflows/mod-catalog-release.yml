@@ -1,0 +1,120 @@
+name: Build and publish mod catalog
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/mod-catalog-release.yml"
+      - "distribution/catalog-v1.json"
+      - "distribution/manifest*.json"
+      - "distribution/modules.json"
+      - "mods/**"
+      - "robots_01.zip"
+      - "scripts/New-ModPackages.ps1"
+      - "tests/ScrapMechanicModManager.Tests/ModPackageScriptTests.cs"
+  push:
+    tags:
+      - "mods-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-packages:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Resolve immutable release tag
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $releaseTag = "${{ github.ref_name }}"
+          } else {
+            $catalog = Get-Content distribution/catalog-v1.json -Raw | ConvertFrom-Json
+            $releaseTag = $catalog.releaseTag
+          }
+          if ($releaseTag -notmatch '^mods-v') {
+            throw "Invalid mod release tag: $releaseTag"
+          }
+          "tag=$releaseTag" >> $env:GITHUB_OUTPUT
+
+      - name: Build deterministic mod packages twice
+        shell: pwsh
+        run: |
+          ./scripts/New-ModPackages.ps1 `
+            -ReleaseTag "${{ steps.release.outputs.tag }}" `
+            -OutputDirectory artifacts/mod-packages
+          ./scripts/New-ModPackages.ps1 `
+            -ReleaseTag "${{ steps.release.outputs.tag }}" `
+            -OutputDirectory artifacts/mod-packages-second
+
+          $first = Get-ChildItem artifacts/mod-packages -File | ForEach-Object {
+            [pscustomobject]@{
+              Name = $_.Name
+              Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            }
+          }
+          $second = Get-ChildItem artifacts/mod-packages-second -File | ForEach-Object {
+            [pscustomobject]@{
+              Name = $_.Name
+              Hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            }
+          }
+          $difference = Compare-Object $first $second -Property Name, Hash
+          if ($difference) {
+            $difference | Format-Table | Out-String | Write-Error
+            throw 'Mod package output is not deterministic.'
+          }
+
+      - name: Verify committed catalog
+        shell: pwsh
+        run: |
+          $expected = Get-Content distribution/catalog-v1.json -Raw
+          $actual = Get-Content artifacts/mod-packages/catalog-v1.json -Raw
+          if ($expected -cne $actual) {
+            throw 'distribution/catalog-v1.json is not the generated catalog.'
+          }
+
+      - name: Test package contracts
+        run: >-
+          dotnet test tests/ScrapMechanicModManager.Tests/ScrapMechanicModManager.Tests.csproj
+          -c Release
+          --filter FullyQualifiedName~ModPackageScriptTests
+
+      - name: Upload mod catalog artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mod-catalog-packages
+          path: artifacts/mod-packages/*
+          if-no-files-found: error
+
+  publish-mod-release:
+    if: startsWith(github.ref, 'refs/tags/mods-v')
+    needs: verify-packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download mod packages
+        uses: actions/download-artifact@v4
+        with:
+          name: mod-catalog-packages
+          path: artifacts/mod-packages
+
+      - name: Publish immutable mod release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ contains(github.ref_name, '-preview') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          generate_release_notes: true
+          files: artifacts/mod-packages/*
+          fail_on_unmatched_files: true

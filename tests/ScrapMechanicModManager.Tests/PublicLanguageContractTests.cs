@@ -15,6 +15,8 @@ public sealed partial class PublicLanguageContractTests
     private static readonly HashSet<string> IntentionalTranslationFiles = new(
         StringComparer.OrdinalIgnoreCase)
     {
+        "distribution/catalog-v1.json",
+        "scripts/New-ModPackages.ps1",
         "src/ScrapMechanicModManager.Core/Localization/AppLocalizer.cs",
         "tests/ScrapMechanicModManager.Tests/AppLocalizerTests.cs",
     };

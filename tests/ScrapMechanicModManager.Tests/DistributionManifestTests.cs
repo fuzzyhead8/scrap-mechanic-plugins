@@ -161,6 +161,43 @@ public sealed class DistributionManifestTests
     }
 
     [Fact]
+    public async Task Dynamic_catalog_declares_valid_immutable_module_packages()
+    {
+        string repoRoot = FindRepoRoot();
+        string catalogPath = Path.Combine(repoRoot, "distribution", "catalog-v1.json");
+        string json = await File.ReadAllTextAsync(catalogPath);
+        using JsonDocument document = JsonDocument.Parse(json);
+        string releaseTag = document.RootElement.GetProperty("releaseTag").GetString()!;
+        OnlineModuleCatalog catalog = JsonSerializer.Deserialize<OnlineModuleCatalog>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        Assert.Equal(1, catalog.SchemaVersion);
+        Assert.Equal(3, catalog.Modules.Count);
+        Assert.Equal(
+            BuiltInModuleIds.All.Order(StringComparer.Ordinal),
+            catalog.Modules.Select(module => module.Definition.ModId)
+                .Order(StringComparer.Ordinal));
+        Assert.All(catalog.Modules, module =>
+        {
+            Assert.Empty(module.Definition.Validate());
+            Assert.Matches("^[0-9A-F]{64}$", module.PackageSha256);
+            Assert.StartsWith(
+                $"https://github.com/fuzzyhead8/scrap-mechanic-plugins/releases/download/{releaseTag}/",
+                module.PackageUrl,
+                StringComparison.Ordinal);
+            Assert.EndsWith(".smmmod", module.PackageUrl, StringComparison.Ordinal);
+            Assert.All(module.Definition.Files, file =>
+                Assert.StartsWith("payload/", file.Source, StringComparison.Ordinal));
+        });
+        Assert.Equal(
+            3,
+            catalog.Modules.Select(module => module.PackageUrl)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+    }
+
+    [Fact]
     public void Distribution_version_matches_both_launcher_projects()
     {
         string repoRoot = FindRepoRoot();
