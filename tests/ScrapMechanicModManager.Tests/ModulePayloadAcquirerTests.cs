@@ -53,6 +53,38 @@ public sealed class ModulePayloadAcquirerTests : IDisposable
     }
 
     [Fact]
+    public async Task GitHub_release_asset_redirect_host_is_accepted()
+    {
+        var handler = new RedirectedResponseHttpHandler(
+            Payload,
+            new Uri(
+                "https://release-assets.githubusercontent.com/" +
+                "github-production-release-asset/1336928071/asset-id?signed=value"));
+        using var httpClient = new HttpClient(handler);
+        var acquirer = new ModulePayloadAcquirer(httpClient, _temporaryRoot);
+
+        await using ModulePayloadLease lease = await acquirer.AcquireAsync(
+            Candidate(ModuleSourceKind.Online));
+
+        Assert.Equal(Payload, await File.ReadAllTextAsync(lease.PayloadPath));
+    }
+
+    [Fact]
+    public async Task Untrusted_redirect_host_is_rejected()
+    {
+        var handler = new RedirectedResponseHttpHandler(
+            Payload,
+            new Uri("https://example.com/github-production-release-asset/file"));
+        using var httpClient = new HttpClient(handler);
+        var acquirer = new ModulePayloadAcquirer(httpClient, _temporaryRoot);
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            acquirer.AcquireAsync(Candidate(ModuleSourceKind.Online)));
+
+        Assert.Contains("GitHub release", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Hash_mismatch_deletes_the_partial_download_before_failing()
     {
         var handler = new CountingHttpHandler("tampered");
@@ -128,6 +160,21 @@ public sealed class ModulePayloadAcquirerTests : IDisposable
     public void Dispose()
     {
         Directory.Delete(_temporaryRoot, recursive: true);
+    }
+
+    private sealed class RedirectedResponseHttpHandler(string content, Uri finalUri)
+        : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = new HttpRequestMessage(HttpMethod.Get, finalUri),
+                Content = new StringContent(content, Encoding.UTF8),
+            });
+        }
     }
 
     private sealed class CountingHttpHandler(string content) : HttpMessageHandler
