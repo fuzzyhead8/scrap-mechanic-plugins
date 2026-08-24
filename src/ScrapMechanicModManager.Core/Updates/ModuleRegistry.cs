@@ -41,7 +41,8 @@ public sealed class ModuleRegistry
 
     public static ModuleRegistry Create(
         IEnumerable<ModuleCandidate> candidates,
-        IReadOnlyDictionary<string, ModuleSourceKind>? sourcePreferences = null)
+        IReadOnlyDictionary<string, ModuleSourceKind>? sourcePreferences = null,
+        string? currentManagerVersion = null)
     {
         ArgumentNullException.ThrowIfNull(candidates);
 
@@ -51,6 +52,9 @@ public sealed class ModuleRegistry
                      .GroupBy(candidate => candidate.ModId, StringComparer.OrdinalIgnoreCase))
         {
             ModuleCandidate[] choices = group
+                .Select(candidate => string.IsNullOrWhiteSpace(currentManagerVersion)
+                    ? candidate
+                    : candidate.ForManagerVersion(currentManagerVersion))
                 .OrderBy(candidate => candidate.SourceKind == ModuleSourceKind.Online ? 0 : 1)
                 .ToArray();
             ModuleSourceKind preferredSource = ModuleSourceKind.Online;

@@ -41,9 +41,9 @@ public sealed class ModulePackageDefinition
         {
             errors.Add("At least one localized DisplayName is required.");
         }
-        if (string.IsNullOrWhiteSpace(MinimumManagerVersion))
+        if (!ModManifest.IsSemanticVersion(MinimumManagerVersion))
         {
-            errors.Add("MinimumManagerVersion is required.");
+            errors.Add("MinimumManagerVersion must be a semantic version.");
         }
         return errors;
     }

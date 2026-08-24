@@ -4,6 +4,14 @@ namespace ScrapMechanicModManager.Core.Updates;
 
 public sealed partial class ModManifest
 {
+    private static readonly HashSet<string> ReservedWindowsDeviceNames = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
     public int SchemaVersion { get; init; }
     public string ModId { get; init; } = string.Empty;
     public string Version { get; init; } = string.Empty;
@@ -58,19 +66,38 @@ public sealed partial class ModManifest
             return false;
         }
 
-        string[] segments = value.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length > 0 && segments.All(segment => segment is not "." and not "..");
+        string normalized = value.Replace('\\', '/');
+        if (normalized.StartsWith('/') || normalized.EndsWith('/')) return false;
+
+        string[] segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length > 0 && segments.All(IsSafePathSegment);
     }
 
     public static bool IsSafeAssetName(string value) =>
-        !string.IsNullOrWhiteSpace(value)
+        IsSafeRelativePath(value)
         && string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal)
         && !value.Contains("..");
 
-    private static bool IsSemanticVersion(string value) =>
+    public static bool IsSemanticVersion(string value) =>
         SemanticVersionRegex().IsMatch(value ?? string.Empty);
 
     private static bool IsSha256(string value) => Sha256Regex().IsMatch(value ?? string.Empty);
+
+    private static bool IsSafePathSegment(string segment)
+    {
+        if (segment is "." or ".." || segment.EndsWith('.') || segment.EndsWith(' '))
+        {
+            return false;
+        }
+        if (segment.Any(character => character < ' '
+            || character is '<' or '>' or '"' or '|' or '?' or '*'))
+        {
+            return false;
+        }
+
+        string deviceName = segment.Split('.', 2)[0];
+        return !ReservedWindowsDeviceNames.Contains(deviceName);
+    }
 
     [GeneratedRegex(
         "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)" +

@@ -121,7 +121,12 @@ public sealed class ModPackageScriptTests : IDisposable
             ".github",
             "workflows",
             "mod-catalog-release.yml"));
+        string packageScript = File.ReadAllText(Path.Combine(
+            repoRoot,
+            "scripts",
+            "New-ModPackages.ps1"));
 
+        Assert.StartsWith("#Requires -Version 7", packageScript, StringComparison.Ordinal);
         Assert.Contains("mods-v*", workflow, StringComparison.Ordinal);
         Assert.Contains("New-ModPackages.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("softprops/action-gh-release", workflow, StringComparison.Ordinal);
