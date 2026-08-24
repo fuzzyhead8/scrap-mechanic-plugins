@@ -1,5 +1,6 @@
 using ScrapMechanicModManager.Core.Localization;
 using ScrapMechanicModManager.Core.Settings;
+using ScrapMechanicModManager.Core.Updates;
 
 namespace ScrapMechanicModManager.Tests;
 
@@ -69,6 +70,81 @@ public sealed class ManagerSettingsStoreTests : IDisposable
         Assert.Equal(expected.Language, actual.Language);
         Assert.Equal(expected.SelectedModuleIds, actual.SelectedModuleIds);
         Assert.DoesNotContain(BuiltInModuleIds.FreezerAutomation, actual.SelectedModuleIds);
+    }
+
+    [Fact]
+    public async Task Dynamic_module_source_preferences_round_trip()
+    {
+        var store = new ManagerSettingsStore(SettingsPath);
+        var expected = new ManagerSettings(
+            "D:/Steam/Scrap Mechanic",
+            AppLanguage.English,
+            ["community-example"],
+            new Dictionary<string, ModuleSourceKind>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["community-example"] = ModuleSourceKind.Local,
+                [BuiltInModuleIds.RobotLoot] = ModuleSourceKind.Online,
+            });
+
+        await store.SaveAsync(expected);
+        ManagerSettings actual = await store.LoadAsync();
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(
+            ModuleSourceKind.Local,
+            actual.ModuleSourcePreferences["COMMUNITY-EXAMPLE"]);
+        Assert.Equal(
+            ModuleSourceKind.Online,
+            actual.ModuleSourcePreferences[BuiltInModuleIds.RobotLoot]);
+        string json = await File.ReadAllTextAsync(SettingsPath);
+        Assert.Contains("\"community-example\": \"local\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Legacy_settings_without_source_preferences_load_an_empty_map()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        await File.WriteAllTextAsync(
+            SettingsPath,
+            """
+            {
+              "gameRoot": "D:/Legacy/Scrap Mechanic",
+              "language": "hungarian",
+              "selectedModuleIds": ["robot-loot"]
+            }
+            """);
+        var store = new ManagerSettingsStore(SettingsPath);
+
+        ManagerSettings settings = await store.LoadAsync();
+
+        Assert.Empty(settings.ModuleSourcePreferences);
+        Assert.Equal([BuiltInModuleIds.RobotLoot], settings.SelectedModuleIds);
+    }
+
+    [Fact]
+    public async Task Unknown_source_preference_is_ignored_without_losing_valid_entries()
+    {
+        Directory.CreateDirectory(_temporaryRoot);
+        await File.WriteAllTextAsync(
+            SettingsPath,
+            """
+            {
+              "language": "hungarian",
+              "moduleSourcePreferences": {
+                "robot-loot": "online",
+                "community-example": "somewhere"
+              }
+            }
+            """);
+        var store = new ManagerSettingsStore(SettingsPath);
+
+        ManagerSettings settings = await store.LoadAsync();
+
+        Assert.Single(settings.ModuleSourcePreferences);
+        Assert.Equal(
+            ModuleSourceKind.Online,
+            settings.ModuleSourcePreferences[BuiltInModuleIds.RobotLoot]);
+        Assert.False(settings.ModuleSourcePreferences.ContainsKey("community-example"));
     }
 
     [Fact]
