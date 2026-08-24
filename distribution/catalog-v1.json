@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "releaseTag": "mods-v0.2.0-preview.11",
+  "modules": [
+    {
+      "definition": {
+        "schemaVersion": 1,
+        "modId": "scrap-mechanic-robot-loot",
+        "version": "0.2.0-preview.11",
+        "displayName": {
+          "hungarian": "Robot zsákmány",
+          "english": "Robot Loot"
+        },
+        "description": {
+          "hungarian": "Tesztelt robot zsákmánytáblák.",
+          "english": "Tested robot loot tables."
+        },
+        "minimumManagerVersion": "0.2.0-preview.12",
+        "supportedBuildIds": [
+          "24529696"
+        ],
+        "files": [
+          {
+            "source": "payload/robots_01/lootsource_haybot.lua",
+            "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua",
+            "sha256": "0F561B32332CCD0019BB97FCFC6070AC3C559269F5E0B315292D5C1337103C60"
+          },
+          {
+            "source": "payload/robots_01/lootsource_tapebot.lua",
+            "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_tapebot.lua",
+            "sha256": "7DDBAB7D7C7D4CDD68FC9A66DD4A2ACA6DF072BB6F534D4B55501311ADC263C6"
+          },
+          {
+            "source": "payload/robots_01/lootsource_totebot_blue.lua",
+            "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_totebot_blue.lua",
+            "sha256": "15016CAB3981FE23A93087438844E310BE6A34EA438D2DB72209953A5A2C82B8"
+          },
+          {
+            "source": "payload/robots_01/lootsource_totebot_green.lua",
+            "target": "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_totebot_green.lua",
+            "sha256": "3D7E9D316CDCD34CE36A424EB62D2D25B49D048C8B087D8F49A833DA4D7F1FC1"
+          }
+        ]
+      },
+      "packageUrl": "https://github.com/fuzzyhead8/scrap-mechanic-plugins/releases/download/mods-v0.2.0-preview.11/scrap-mechanic-robot-loot.smmmod",
+      "packageSha256": "B052BDB2B8A7433547F921C35F84D8FD98E8C4BBC450D3DD1E33C2652133F19C",
+      "defaultSelected": true
+    },
+    {
+      "definition": {
+        "schemaVersion": 1,
+        "modId": "scrap-mechanic-beehive-automation",
+        "version": "0.2.0-preview.11",
+        "displayName": {
+          "hungarian": "Méhkaptár automatizálás",
+          "english": "Beehive Automation"
+        },
+        "description": {
+          "hungarian": "A viasztermelést fizikai kimenetté alakítja.",
+          "english": "Converts wax production into physical output."
+        },
+        "minimumManagerVersion": "0.2.0-preview.12",
+        "supportedBuildIds": [
+          "24529696"
+        ],
+        "files": [
+          {
+            "source": "payload/beehive-automation/InteractableBeehive.lua",
+            "target": "Survival/Scripts/game/interactables/InteractableBeehive.lua",
+            "sha256": "81A880580F7655134170393216AE283D339E31A058C97CB72A2A6A75CAD118DD"
+          }
+        ]
+      },
+      "packageUrl": "https://github.com/fuzzyhead8/scrap-mechanic-plugins/releases/download/mods-v0.2.0-preview.11/scrap-mechanic-beehive-automation.smmmod",
+      "packageSha256": "D85DE272C5B4B70E4EFD384FE9F346AC499288DD2D87DBCF252EE4B14543E5B8",
+      "defaultSelected": false
+    },
+    {
+      "definition": {
+        "schemaVersion": 1,
+        "modId": "scrap-mechanic-freezer-automation",
+        "version": "0.2.0-preview.11",
+        "displayName": {
+          "hungarian": "Fagyasztó automatizálás",
+          "english": "Freezer Automation"
+        },
+        "description": {
+          "hungarian": "A jégtermelést fizikai kimenetté alakítja.",
+          "english": "Converts ice production into physical output."
+        },
+        "minimumManagerVersion": "0.2.0-preview.12",
+        "supportedBuildIds": [
+          "24529696"
+        ],
+        "files": [
+          {
+            "source": "payload/freezer-automation/Freezer.lua",
+            "target": "Survival/Scripts/game/interactables/Freezer.lua",
+            "sha256": "3CEE0F34B8347C8B0930051427424F6FDD818F1DFA5F98831C0A126223D177B9"
+          }
+        ]
+      },
+      "packageUrl": "https://github.com/fuzzyhead8/scrap-mechanic-plugins/releases/download/mods-v0.2.0-preview.11/scrap-mechanic-freezer-automation.smmmod",
+      "packageSha256": "4FFA3DC3E3DD992CE2F3AB655C23DD8B5B59389AA6921EAB04AF1EE837AAE328",
+      "defaultSelected": false
+    }
+  ]
+}

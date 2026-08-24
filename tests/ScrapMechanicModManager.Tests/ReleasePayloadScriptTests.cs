@@ -52,6 +52,7 @@ public sealed class ReleasePayloadScriptTests : IDisposable
         string output = await process.StandardOutput.ReadToEndAsync();
         string error = await process.StandardError.ReadToEndAsync();
         Assert.True(process.ExitCode == 0, $"stdout: {output}\nstderr: {error}");
+        Assert.Contains("Legacy release payloads created", output, StringComparison.Ordinal);
 
         string manifestPath = Path.Combine(_output, "manifest.json");
         string payloadPath = Path.Combine(_output, "robots_01.zip");

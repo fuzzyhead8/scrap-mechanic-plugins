@@ -1,3 +1,5 @@
+# Legacy compatibility assets for launcher releases.
+# New mod content is published independently by New-ModPackages.ps1.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -239,7 +241,7 @@ $catalog = [ordered]@{
 }
 Write-JsonFile -Path (Join-Path $OutputDirectory 'modules.json') -Value $catalog
 
-Write-Output "Release payloads created: $OutputDirectory"
+Write-Output "Legacy release payloads created: $OutputDirectory"
 Write-Output "Version: $Version"
 Write-Output "Build IDs: $($BuildIds -join ', ')"
 foreach ($module in $moduleDefinitions) {

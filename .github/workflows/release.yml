@@ -134,7 +134,7 @@ jobs:
         with:
           path: artifacts/download
 
-      - name: Build release manifest and payload
+      - name: Build legacy compatibility manifests and payloads
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
