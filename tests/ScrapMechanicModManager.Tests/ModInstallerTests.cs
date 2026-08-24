@@ -418,6 +418,32 @@ public sealed class ModInstallerTests : IDisposable
     }
 
     [Fact]
+    public async Task Oversized_zip_entry_is_rejected_before_writing()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string targetRelative =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua";
+        string targetPath = CreateFile(gameRoot, targetRelative, "vanilla");
+        (string zipPath, ModManifest manifest) = CreatePayload(
+            new string('x', 64),
+            targetRelative);
+        var installer = new ModInstaller(
+            packageLimits: new ModulePackageLimits(
+                MaxPackageBytes: 4096,
+                MaxEntries: 16,
+                MaxSingleEntryBytes: 16,
+                MaxTotalUncompressedBytes: 32,
+                MaxManifestBytes: 4096));
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            installer.InstallAsync(gameRoot, zipPath, manifest, backupRoot));
+
+        Assert.Contains("entry size limit", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("vanilla", File.ReadAllText(targetPath));
+    }
+
+    [Fact]
     public async Task Zip_path_traversal_is_rejected_before_writing()
     {
         string gameRoot = Path.Combine(_root, "game");

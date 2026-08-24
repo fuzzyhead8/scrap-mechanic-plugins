@@ -10,7 +10,9 @@ public sealed record InstallResult(
     int InstalledFileCount,
     bool CacheBundleInvalidated);
 
-public sealed class ModInstaller(HashService? hashService = null)
+public sealed class ModInstaller(
+    HashService? hashService = null,
+    ModulePackageLimits? packageLimits = null)
 {
     private const string CoreDataBundleRelativePath = "Cache/Bundle/core_data.cbo";
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
@@ -21,6 +23,8 @@ public sealed class ModInstaller(HashService? hashService = null)
     };
 
     private readonly HashService _hashService = hashService ?? new HashService();
+    private readonly ModulePackageLimits _packageLimits =
+        packageLimits ?? ModulePackageLimits.Default;
 
     public Task<InstallResult> InstallAsync(
         string gameRoot,
@@ -468,11 +472,25 @@ public sealed class ModInstaller(HashService? hashService = null)
         string stagingRoot,
         CancellationToken cancellationToken)
     {
+        var packageInfo = new FileInfo(payloadZipPath);
+        if (packageInfo.Length > _packageLimits.MaxPackageBytes)
+        {
+            throw new InvalidDataException(
+                $"Payload ZIP compressed size limit exceeded: {packageInfo.Name}.");
+        }
+
         using ZipArchive archive = ZipFile.OpenRead(payloadZipPath);
+        if (archive.Entries.Count > _packageLimits.MaxEntries)
+        {
+            throw new InvalidDataException(
+                $"Payload ZIP entry count limit exceeded: {archive.Entries.Count}.");
+        }
+
         var entries = new Dictionary<string, ZipArchiveEntry>(
             OperatingSystem.IsWindows()
                 ? StringComparer.OrdinalIgnoreCase
                 : StringComparer.Ordinal);
+        long totalUncompressedBytes = 0;
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
             string normalized = entry.FullName.Replace('\\', '/').TrimEnd('/');
@@ -481,9 +499,25 @@ public sealed class ModInstaller(HashService? hashService = null)
             {
                 throw new InvalidDataException($"Unsafe ZIP path: {entry.FullName}");
             }
+            if (IsSymbolicLink(entry))
+            {
+                throw new InvalidDataException(
+                    $"Symbolic link ZIP entry is not allowed: {entry.FullName}");
+            }
             if (!entries.TryAdd(normalized, entry))
             {
                 throw new InvalidDataException($"Duplicate ZIP entry: {entry.FullName}");
+            }
+            if (entry.Length > _packageLimits.MaxSingleEntryBytes)
+            {
+                throw new InvalidDataException(
+                    $"Payload ZIP entry size limit exceeded: {entry.FullName}");
+            }
+            totalUncompressedBytes = checked(totalUncompressedBytes + entry.Length);
+            if (totalUncompressedBytes > _packageLimits.MaxTotalUncompressedBytes)
+            {
+                throw new InvalidDataException(
+                    "Payload ZIP uncompressed size limit exceeded.");
             }
         }
 
@@ -514,6 +548,14 @@ public sealed class ModInstaller(HashService? hashService = null)
                     $"File SHA-256 mismatch: {file.Source}");
             }
         }
+    }
+
+    private static bool IsSymbolicLink(ZipArchiveEntry entry)
+    {
+        const int UnixFileTypeMask = 0xF000;
+        const int UnixSymbolicLink = 0xA000;
+        int unixMode = entry.ExternalAttributes >> 16;
+        return (unixMode & UnixFileTypeMask) == UnixSymbolicLink;
     }
 
     private static bool TargetsGeneratedCacheDirectory(string relativePath)
