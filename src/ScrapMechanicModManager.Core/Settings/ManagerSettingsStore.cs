@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ScrapMechanicModManager.Core.Localization;
+using ScrapMechanicModManager.Core.Updates;
 
 namespace ScrapMechanicModManager.Core.Settings;
 
@@ -97,7 +98,11 @@ public sealed class ManagerSettingsStore
         var stored = new StoredSettings(
             settings.GameRoot,
             settings.Language == AppLanguage.English ? "english" : "hungarian",
-            settings.SelectedModuleIds);
+            settings.SelectedModuleIds,
+            settings.ModuleSourcePreferences.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value == ModuleSourceKind.Local ? "local" : "online",
+                StringComparer.OrdinalIgnoreCase));
 
         try
         {
@@ -136,11 +141,35 @@ public sealed class ManagerSettingsStore
         return new ManagerSettings(
             string.IsNullOrWhiteSpace(stored.GameRoot) ? null : stored.GameRoot,
             AppLocalizer.ParseLanguage(stored.Language),
-            stored.SelectedModuleIds);
+            stored.SelectedModuleIds,
+            ParseSourcePreferences(stored.ModuleSourcePreferences));
+    }
+
+    private static IReadOnlyDictionary<string, ModuleSourceKind> ParseSourcePreferences(
+        IReadOnlyDictionary<string, string>? storedPreferences)
+    {
+        var parsed = new Dictionary<string, ModuleSourceKind>(
+            StringComparer.OrdinalIgnoreCase);
+        if (storedPreferences is null) return parsed;
+
+        foreach ((string moduleId, string source) in storedPreferences)
+        {
+            if (string.IsNullOrWhiteSpace(moduleId)) continue;
+            if (string.Equals(source, "online", StringComparison.OrdinalIgnoreCase))
+            {
+                parsed[moduleId] = ModuleSourceKind.Online;
+            }
+            else if (string.Equals(source, "local", StringComparison.OrdinalIgnoreCase))
+            {
+                parsed[moduleId] = ModuleSourceKind.Local;
+            }
+        }
+        return parsed;
     }
 
     private sealed record StoredSettings(
         string? GameRoot,
         string? Language,
-        IReadOnlyList<string>? SelectedModuleIds);
+        IReadOnlyList<string>? SelectedModuleIds,
+        IReadOnlyDictionary<string, string>? ModuleSourcePreferences);
 }

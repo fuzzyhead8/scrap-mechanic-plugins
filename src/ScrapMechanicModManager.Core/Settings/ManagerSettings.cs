@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using ScrapMechanicModManager.Core.Localization;
+using ScrapMechanicModManager.Core.Updates;
 
 namespace ScrapMechanicModManager.Core.Settings;
 
@@ -37,18 +39,21 @@ public sealed class ManagerSettings : IEquatable<ManagerSettings>
     public ManagerSettings(
         string? gameRoot,
         AppLanguage language,
-        IReadOnlyList<string>? selectedModuleIds = null)
+        IReadOnlyList<string>? selectedModuleIds = null,
+        IReadOnlyDictionary<string, ModuleSourceKind>? moduleSourcePreferences = null)
     {
         GameRoot = gameRoot;
         Language = language;
         SelectedModuleIds = selectedModuleIds is null
             ? BuiltInModuleIds.DefaultSelected
             : NormalizeModuleIds(selectedModuleIds);
+        ModuleSourcePreferences = NormalizeSourcePreferences(moduleSourcePreferences);
     }
 
     public string? GameRoot { get; }
     public AppLanguage Language { get; }
     public IReadOnlyList<string> SelectedModuleIds { get; }
+    public IReadOnlyDictionary<string, ModuleSourceKind> ModuleSourcePreferences { get; }
 
     public static ManagerSettings Default { get; } =
         new(null, AppLanguage.Hungarian);
@@ -59,7 +64,10 @@ public sealed class ManagerSettings : IEquatable<ManagerSettings>
         && Language == other.Language
         && SelectedModuleIds.SequenceEqual(
             other.SelectedModuleIds,
-            StringComparer.OrdinalIgnoreCase);
+            StringComparer.OrdinalIgnoreCase)
+        && SourcePreferencesEqual(
+            ModuleSourcePreferences,
+            other.ModuleSourcePreferences);
 
     public override bool Equals(object? obj) => Equals(obj as ManagerSettings);
 
@@ -72,6 +80,12 @@ public sealed class ManagerSettings : IEquatable<ManagerSettings>
         {
             hash.Add(moduleId, StringComparer.OrdinalIgnoreCase);
         }
+        foreach ((string moduleId, ModuleSourceKind source) in ModuleSourcePreferences
+                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            hash.Add(moduleId, StringComparer.OrdinalIgnoreCase);
+            hash.Add(source);
+        }
         return hash.ToHashCode();
     }
 
@@ -82,4 +96,27 @@ public sealed class ManagerSettings : IEquatable<ManagerSettings>
             .Select(moduleId => BuiltInModuleIds.Canonicalize(moduleId.Trim()))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    private static IReadOnlyDictionary<string, ModuleSourceKind> NormalizeSourcePreferences(
+        IReadOnlyDictionary<string, ModuleSourceKind>? preferences)
+    {
+        var normalized = new Dictionary<string, ModuleSourceKind>(
+            StringComparer.OrdinalIgnoreCase);
+        if (preferences is not null)
+        {
+            foreach ((string moduleId, ModuleSourceKind source) in preferences)
+            {
+                if (string.IsNullOrWhiteSpace(moduleId)) continue;
+                normalized[BuiltInModuleIds.Canonicalize(moduleId.Trim())] = source;
+            }
+        }
+        return new ReadOnlyDictionary<string, ModuleSourceKind>(normalized);
+    }
+
+    private static bool SourcePreferencesEqual(
+        IReadOnlyDictionary<string, ModuleSourceKind> first,
+        IReadOnlyDictionary<string, ModuleSourceKind> second) =>
+        first.Count == second.Count
+        && first.All(pair => second.TryGetValue(pair.Key, out ModuleSourceKind value)
+            && value == pair.Value);
 }
