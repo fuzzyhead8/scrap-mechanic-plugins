@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Reflection;
@@ -18,9 +19,6 @@ namespace ScrapMechanicModManager.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private const string RepositoryOwner = "fuzzyhead8";
-    private const string RepositoryName = "scrap-mechanic-plugins";
-
     private readonly TextBlock _header;
     private readonly TextBlock _subtitle;
     private readonly TextBlock _gameRootLabel;
@@ -35,15 +33,11 @@ public sealed partial class MainWindow : Window
     private readonly Button _launch;
     private readonly CheckBox _devMode;
     private readonly TextBlock _modulesLabel;
-    private readonly CheckBox _robotLootModule;
-    private readonly CheckBox _beehiveAutomationModule;
-    private readonly CheckBox _freezerAutomationModule;
-    private readonly TextBlock _robotLootStatus;
-    private readonly TextBlock _beehiveAutomationStatus;
-    private readonly TextBlock _freezerAutomationStatus;
-    private readonly TextBlock _robotLootBackupStatus;
-    private readonly TextBlock _beehiveAutomationBackupStatus;
-    private readonly TextBlock _freezerAutomationBackupStatus;
+    private readonly Button _openModsFolder;
+    private readonly Button _refreshModules;
+    private readonly StackPanel _modulesPanel;
+    private readonly Dictionary<string, ModuleRowControls> _moduleRows = new(
+        StringComparer.OrdinalIgnoreCase);
     private readonly TextBlock _gameStatus;
     private readonly TextBlock _modStatus;
     private readonly ProgressBar _progress;
@@ -62,7 +56,9 @@ public sealed partial class MainWindow : Window
         Timeout = TimeSpan.FromSeconds(30),
     };
     private readonly CancellationTokenSource _lifetimeCancellation = new();
-    private readonly GitHubReleaseClient _releaseClient;
+    private readonly OnlineModuleCatalogClient _onlineCatalogClient;
+    private readonly LocalModulePackageSource _localModuleSource;
+    private readonly ModulePayloadAcquirer _payloadAcquirer;
     private readonly AppLocalizer _localizer = new();
     private readonly ManagerSettingsStore _settingsStore = new(SettingsPath);
     private readonly JsonLinesOperationJournal _operationJournal = new(OperationHistoryPath);
@@ -71,19 +67,11 @@ public sealed partial class MainWindow : Window
     private LocalizedMessage _gameStatusMessage = new(TextKey.GameStatusNotChecked);
     private LocalizedMessage _modStatusMessage = new(TextKey.ModStatusNotChecked);
     private readonly Dictionary<string, LocalizedMessage> _moduleStatusMessages = new(
-        StringComparer.OrdinalIgnoreCase)
-    {
-        [BuiltInModuleIds.RobotLoot] = new(TextKey.ModuleStatusNotChecked),
-        [BuiltInModuleIds.BeehiveAutomation] = new(TextKey.ModuleStatusNotChecked),
-        [BuiltInModuleIds.FreezerAutomation] = new(TextKey.ModuleStatusNotChecked),
-    };
+        StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ModuleBackupStatus> _moduleBackupStatuses = new(
-        StringComparer.OrdinalIgnoreCase)
-    {
-        [BuiltInModuleIds.RobotLoot] = EmptyBackupStatus(BuiltInModuleIds.RobotLoot),
-        [BuiltInModuleIds.BeehiveAutomation] = EmptyBackupStatus(BuiltInModuleIds.BeehiveAutomation),
-        [BuiltInModuleIds.FreezerAutomation] = EmptyBackupStatus(BuiltInModuleIds.FreezerAutomation),
-    };
+        StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<ModuleCandidate> _moduleCandidates = [];
+    private ModuleRegistry _moduleRegistry = ModuleRegistry.Create([]);
     private SteamInstallation? _selectedInstallation;
     private string? _activeOperationId;
     private bool _applyingLanguage;
@@ -92,6 +80,11 @@ public sealed partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "ScrapMechanicModManager");
     private static string BackupRoot => Path.Combine(AppDataRoot, "backups");
+    private static string ModsRoot => Path.Combine(AppDataRoot, "mods");
+    private static string CatalogCachePath => Path.Combine(
+        AppDataRoot,
+        "cache",
+        "catalog-v1.json");
     private static string SettingsPath => Path.Combine(AppDataRoot, "settings.json");
     private static string OperationHistoryPath => Path.Combine(
         AppDataRoot,
@@ -114,22 +107,9 @@ public sealed partial class MainWindow : Window
         _launch = this.FindControl<Button>("LaunchButton")!;
         _devMode = this.FindControl<CheckBox>("DevModeCheckBox")!;
         _modulesLabel = this.FindControl<TextBlock>("ModulesLabelText")!;
-        _robotLootModule = this.FindControl<CheckBox>("RobotLootModuleCheckBox")!;
-        _beehiveAutomationModule =
-            this.FindControl<CheckBox>("BeehiveAutomationModuleCheckBox")!;
-        _freezerAutomationModule =
-            this.FindControl<CheckBox>("FreezerAutomationModuleCheckBox")!;
-        _robotLootStatus = this.FindControl<TextBlock>("RobotLootModuleStatusText")!;
-        _beehiveAutomationStatus =
-            this.FindControl<TextBlock>("BeehiveAutomationModuleStatusText")!;
-        _freezerAutomationStatus =
-            this.FindControl<TextBlock>("FreezerAutomationModuleStatusText")!;
-        _robotLootBackupStatus =
-            this.FindControl<TextBlock>("RobotLootBackupStatusText")!;
-        _beehiveAutomationBackupStatus =
-            this.FindControl<TextBlock>("BeehiveAutomationBackupStatusText")!;
-        _freezerAutomationBackupStatus =
-            this.FindControl<TextBlock>("FreezerAutomationBackupStatusText")!;
+        _openModsFolder = this.FindControl<Button>("OpenModsFolderButton")!;
+        _refreshModules = this.FindControl<Button>("RefreshModulesButton")!;
+        _modulesPanel = this.FindControl<StackPanel>("ModulesPanel")!;
         _gameStatus = this.FindControl<TextBlock>("GameStatusText")!;
         _modStatus = this.FindControl<TextBlock>("ModStatusText")!;
         _progress = this.FindControl<ProgressBar>("ProgressBar")!;
@@ -137,21 +117,29 @@ public sealed partial class MainWindow : Window
 
         _settings = _settingsStore.Load();
         _localizer.Language = _settings.Language;
-        ApplySelectedModuleSettings();
-        ApplyLocalizedText();
 
         string informationalVersion = typeof(MainWindow).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "0.2.0-preview.11";
         string appVersion = informationalVersion.Split('+', 2)[0];
-        string? releaseTag = ReleaseChannel.GetReleaseTag(appVersion);
-        _releaseClient = new GitHubReleaseClient(
-            _httpClient,
-            RepositoryOwner,
-            RepositoryName,
-            releaseTag);
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", appVersion));
+        _onlineCatalogClient = new OnlineModuleCatalogClient(
+            _httpClient,
+            OnlineModuleCatalogClient.DefaultCatalogUri,
+            CatalogCachePath);
+        _localModuleSource = new LocalModulePackageSource(ModsRoot);
+        _payloadAcquirer = new ModulePayloadAcquirer(
+            _httpClient,
+            Path.GetTempPath());
+        _moduleCandidates = CreateFallbackCandidates();
+        _moduleRegistry = ModuleRegistry.Create(
+            _moduleCandidates,
+            _settings.ModuleSourcePreferences);
+
+        RebuildModuleRows();
+        ApplySelectedModuleSettings();
+        ApplyLocalizedText();
 
         Opened += async (_, _) => await RunBusyAsync(InitializeAsync);
         Closed += (_, _) =>
@@ -182,9 +170,18 @@ public sealed partial class MainWindow : Window
         await RunBusyAsync(RestoreSelectedModulesAsync);
     }
 
-    private async void OnModuleSelectionChanged(object? sender, RoutedEventArgs e)
+    private async void OnRefreshModulesClick(object? sender, RoutedEventArgs e)
     {
-        await RunBusyAsync(() => SaveCurrentSettingsAsync());
+        await RunBusyAsync(RefreshModuleRegistryAsync);
+    }
+
+    private async void OnOpenModsFolderClick(object? sender, RoutedEventArgs e)
+    {
+        await RunBusyAsync(() =>
+        {
+            OpenModsFolder();
+            return Task.CompletedTask;
+        });
     }
 
     private async void OnLaunchClick(object? sender, RoutedEventArgs e)
@@ -205,8 +202,18 @@ public sealed partial class MainWindow : Window
     private async Task InitializeAsync()
     {
         await LoadOperationHistoryAsync();
+        await RefreshModuleRegistryAsync();
         await RefreshBackupStatusesAsync();
         await AutoDetectAsync();
+    }
+
+    private static void OpenModsFolder()
+    {
+        Directory.CreateDirectory(ModsRoot);
+        Process.Start(new ProcessStartInfo(ModsRoot)
+        {
+            UseShellExecute = true,
+        });
     }
 
     private async Task AutoDetectAsync()
@@ -272,30 +279,286 @@ public sealed partial class MainWindow : Window
         _selectedInstallation = null;
         SetGameStatus(TextKey.GameStatusPathProvidedNeedsCheck);
         SetModStatus(TextKey.ModStatusNotChecked);
-        foreach (string modId in BuiltInModuleIds.All)
+        foreach (ModuleRegistryEntry entry in _moduleRegistry.Entries)
         {
-            SetModuleStatus(modId, TextKey.ModuleStatusNotChecked);
+            SetModuleStatus(entry.ModId, TextKey.ModuleStatusNotChecked);
         }
         await RefreshBackupStatusesAsync();
     }
 
-    private async Task CheckForUpdatesAsync()
+    private async Task RefreshModuleRegistryAsync()
     {
-        (SteamInstallation installation, ResolvedModuleRelease release, string productVersion) =
-            await ResolveAndValidateLatestModulesAsync();
-
-        foreach (string modId in BuiltInModuleIds.All)
+        var candidates = new List<ModuleCandidate>();
+        try
         {
-            SetModuleStatus(modId, TextKey.ModuleStatusUnavailable);
+            OnlineModuleCatalogLoadResult online =
+                await _onlineCatalogClient.LoadAsync(_lifetimeCancellation.Token);
+            candidates.AddRange(online.Snapshot.Candidates);
+            foreach (ModuleSourceIssue issue in online.Snapshot.Issues)
+            {
+                LogDetailed(
+                    TextKey.LogModuleSourceIssue,
+                    OperationSeverity.Warning,
+                    [],
+                    null,
+                    null,
+                    issue.Source,
+                    string.Join("; ", issue.Errors));
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (error is HttpRequestException
+            or IOException
+            or InvalidDataException
+            or UnauthorizedAccessException)
+        {
+            LogDetailed(
+                TextKey.LogOnlineCatalogFallback,
+                OperationSeverity.Warning,
+                [],
+                null,
+                error,
+                error.Message);
+            candidates.AddRange(CreateFallbackCandidates());
         }
 
-        bool allCurrent = release.Modules.Count > 0;
-        foreach (ResolvedModule module in release.Modules)
+        ModuleSourceSnapshot local = await Task.Run(
+            _localModuleSource.Load,
+            _lifetimeCancellation.Token);
+        candidates.AddRange(local.Candidates);
+        foreach (ModuleSourceIssue issue in local.Issues)
         {
+            LogDetailed(
+                TextKey.LogModuleSourceIssue,
+                OperationSeverity.Warning,
+                [],
+                null,
+                null,
+                Path.GetFileName(issue.Source),
+                string.Join("; ", issue.Errors));
+        }
+
+        _moduleCandidates = candidates;
+        _moduleRegistry = ModuleRegistry.Create(
+            _moduleCandidates,
+            _settings.ModuleSourcePreferences);
+        RebuildModuleRows();
+        ApplySelectedModuleSettings();
+        await RefreshBackupStatusesAsync();
+    }
+
+    private void RebuildModuleRows()
+    {
+        _modulesPanel.Children.Clear();
+        _moduleRows.Clear();
+
+        foreach (ModuleRegistryEntry entry in _moduleRegistry.Entries)
+        {
+            _moduleStatusMessages.TryAdd(
+                entry.ModId,
+                new LocalizedMessage(TextKey.ModuleStatusNotChecked));
+            _moduleBackupStatuses.TryAdd(
+                entry.ModId,
+                EmptyBackupStatus(entry.ModId));
+
+            var selection = new CheckBox
+            {
+                IsChecked = _settings.SelectedModuleIds.Contains(
+                    entry.ModId,
+                    StringComparer.OrdinalIgnoreCase),
+                IsEnabled = entry.CanInstall || HasRestorableBackup(entry.ModId),
+                Content = entry.SelectedSource == ModuleSourceKind.Local
+                    ? $"{GetModuleDisplayName(entry.ModId)} · " +
+                      _localizer.Get(TextKey.ModuleLocalUnverified)
+                    : GetModuleDisplayName(entry.ModId),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            ComboBox? sourceSelector = null;
+            var namePanel = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            namePanel.Children.Add(selection);
+            if (entry.HasSourceChoice)
+            {
+                sourceSelector = CreateSourceSelector(entry);
+                namePanel.Children.Add(sourceSelector);
+            }
+
+            var status = new TextBlock
+            {
+                Opacity = 0.68,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+            };
+            var backup = new TextBlock
+            {
+                Opacity = 0.68,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+            };
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("3*,2*,3*"),
+                ColumnSpacing = 12,
+                MinHeight = 28,
+            };
+            Grid.SetColumn(namePanel, 0);
+            Grid.SetColumn(status, 1);
+            Grid.SetColumn(backup, 2);
+            row.Children.Add(namePanel);
+            row.Children.Add(status);
+            row.Children.Add(backup);
+            _modulesPanel.Children.Add(row);
+            _moduleRows[entry.ModId] = new ModuleRowControls(
+                selection,
+                status,
+                backup,
+                sourceSelector);
+
+            string modId = entry.ModId;
+            selection.Click += async (_, _) =>
+                await RunBusyAsync(() => SaveCurrentSettingsAsync());
+            if (sourceSelector is not null)
+            {
+                sourceSelector.SelectionChanged += async (_, _) =>
+                {
+                    if (sourceSelector.SelectedItem is ModuleSourceChoiceItem selected)
+                    {
+                        await RunBusyAsync(() => ChangeModuleSourceAsync(
+                            modId,
+                            selected.Source));
+                    }
+                };
+            }
+        }
+
+        RenderModuleStatuses();
+        RenderBackupStatuses();
+    }
+
+    private ComboBox CreateSourceSelector(ModuleRegistryEntry entry)
+    {
+        ModuleSourceChoiceItem[] choices = entry.Candidates
+            .Select(candidate => candidate.SourceKind)
+            .Distinct()
+            .Select(source => new ModuleSourceChoiceItem(
+                source,
+                _localizer.Get(source == ModuleSourceKind.Online
+                    ? TextKey.ModuleSourceOnline
+                    : TextKey.ModuleSourceLocal)))
+            .ToArray();
+        var selector = new ComboBox
+        {
+            ItemsSource = choices,
+            MinWidth = 92,
+            SelectedIndex = Array.FindIndex(
+                choices,
+                choice => choice.Source == entry.SelectedSource),
+        };
+        return selector;
+    }
+
+    private async Task ChangeModuleSourceAsync(
+        string modId,
+        ModuleSourceKind source)
+    {
+        var preferences = new Dictionary<string, ModuleSourceKind>(
+            _settings.ModuleSourcePreferences,
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [modId] = source,
+        };
+        _settings = new ManagerSettings(
+            string.IsNullOrWhiteSpace(_gameRoot.Text)
+                ? _settings.GameRoot
+                : _gameRoot.Text.Trim(),
+            _localizer.Language,
+            GetSelectedModuleIds(),
+            preferences);
+        _moduleRegistry = ModuleRegistry.Create(_moduleCandidates, preferences);
+        RebuildModuleRows();
+        await SaveCurrentSettingsAsync();
+    }
+
+    private static IReadOnlyList<ModuleCandidate> CreateFallbackCandidates() =>
+    [
+        CreateFallbackCandidate(
+            BuiltInModuleIds.RobotLoot,
+            "Robot Loot",
+            defaultSelected: true),
+        CreateFallbackCandidate(
+            BuiltInModuleIds.BeehiveAutomation,
+            "Beehive Automation"),
+        CreateFallbackCandidate(
+            BuiltInModuleIds.FreezerAutomation,
+            "Freezer Automation"),
+    ];
+
+    private static ModuleCandidate CreateFallbackCandidate(
+        string modId,
+        string name,
+        bool defaultSelected = false) => new(
+        new ModulePackageDefinition
+        {
+            SchemaVersion = 1,
+            ModId = modId,
+            Version = "0.0.0",
+            DisplayName = new LocalizedModuleText(name, name),
+            Description = new LocalizedModuleText(string.Empty, string.Empty),
+            MinimumManagerVersion = "0.2.0",
+            SupportedBuildIds = [],
+            Files = [],
+        },
+        ModuleSourceKind.Online,
+        new string('0', 64),
+        PackageDownloadUrl: null,
+        LocalPackagePath: null,
+        defaultSelected,
+        ["Online catalog is not available."]);
+
+    private async Task CheckForUpdatesAsync()
+    {
+        await RefreshModuleRegistryAsync();
+        string[] availableIds = _moduleRegistry.Entries
+            .Where(entry => entry.CanInstall)
+            .Select(entry => entry.ModId)
+            .ToArray();
+        if (availableIds.Length == 0)
+        {
+            throw new UserFacingException(TextKey.ErrorModuleCatalogUnavailable);
+        }
+
+        (SteamInstallation installation, IReadOnlyList<ModuleCandidate> candidates,
+            string productVersion) = await ResolveAndValidateCandidatesAsync(
+                availableIds,
+                requireCommonBuild: false);
+        foreach (ModuleRegistryEntry entry in _moduleRegistry.Entries)
+        {
+            SetModuleStatus(entry.ModId, TextKey.ModuleStatusUnavailable);
+        }
+
+        bool allCurrent = candidates.Count > 0;
+        foreach (ModuleCandidate candidate in candidates)
+        {
+            if (!candidate.Definition.SupportedBuildIds.Contains(
+                    installation.BuildId,
+                    StringComparer.Ordinal))
+            {
+                allCurrent = false;
+                continue;
+            }
+
+            ModManifest manifest = candidate.CreateInstallManifest();
             ModuleInstallState state = await _moduleStatusEvaluator.EvaluateAsync(
                 installation.GameRoot,
                 BackupRoot,
-                module.Manifest,
+                manifest,
                 _lifetimeCancellation.Token);
             TextKey statusKey = state switch
             {
@@ -303,16 +566,16 @@ public sealed partial class MainWindow : Window
                 ModuleInstallState.UpdateAvailable => TextKey.ModuleStatusUpdateAvailable,
                 _ => TextKey.ModuleStatusNotInstalled,
             };
-            SetModuleStatus(module.ModId, statusKey, module.Manifest.Version);
+            SetModuleStatus(candidate.ModId, statusKey, candidate.Definition.Version);
             allCurrent &= state == ModuleInstallState.UpToDate;
         }
 
         SetGameStatus(TextKey.GameStatusReady, productVersion, installation.BuildId);
         SetModStatus(
             allCurrent ? TextKey.ModStatusUpToDate : TextKey.ModStatusUpdateAvailable,
-            release.TagName);
+            "catalog-v1");
         await RefreshBackupStatusesAsync();
-        Log(TextKey.LogLatestRelease, release.TagName, installation.BuildId);
+        Log(TextKey.LogLatestRelease, "catalog-v1", installation.BuildId);
     }
 
     private async Task InstallLatestAsync()
@@ -322,62 +585,45 @@ public sealed partial class MainWindow : Window
         {
             throw new UserFacingException(TextKey.ErrorNoModulesSelected);
         }
-        EnsureGameIsNotRunning();
-        (SteamInstallation installation, ResolvedModuleRelease release, _) =
-            await ResolveAndValidateLatestModulesAsync(selectedModuleIds);
 
-        IReadOnlyList<ResolvedModule> selectedModules = ModuleSelection.FilterAvailable(
-            release.Modules,
-            selectedModuleIds);
-        var temporaryZips = new List<string>();
-        var installRequests = new List<ModuleInstallRequest>();
+        EnsureGameIsNotRunning();
+        await RefreshModuleRegistryAsync();
+        (SteamInstallation installation, IReadOnlyList<ModuleCandidate> selectedModules, _) =
+            await ResolveAndValidateCandidatesAsync(selectedModuleIds);
+
+        foreach (ModuleCandidate module in selectedModules)
+        {
+            object source = module.SourceKind == ModuleSourceKind.Online
+                ? module.PackageDownloadUrl ?? new Uri("https://github.com")
+                : module.LocalPackagePath ?? string.Empty;
+            LogDetailed(
+                TextKey.LogModulePayloadDownload,
+                OperationSeverity.Information,
+                [module.ModId],
+                null,
+                null,
+                GetModuleDisplayName(module.ModId),
+                source);
+        }
+
         try
         {
-            foreach (ResolvedModule module in selectedModules)
-            {
-                string temporaryZip = Path.Combine(
-                    Path.GetTempPath(),
-                    $"smmm-{Guid.NewGuid():N}-{module.Manifest.PayloadAsset}");
-                temporaryZips.Add(temporaryZip);
-                LogDetailed(
-                    TextKey.LogModulePayloadDownload,
-                    OperationSeverity.Information,
-                    [module.ModId],
-                    null,
-                    null,
-                    GetModuleDisplayName(module.ModId),
-                    module.PayloadDownloadUrl);
-                using HttpResponseMessage response = await _httpClient.GetAsync(
-                    module.PayloadDownloadUrl,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    _lifetimeCancellation.Token);
-                response.EnsureSuccessStatusCode();
-                await using (Stream source = await response.Content.ReadAsStreamAsync(
-                    _lifetimeCancellation.Token))
-                await using (FileStream destination = File.Create(temporaryZip))
-                {
-                    await source.CopyToAsync(destination, _lifetimeCancellation.Token);
-                }
-                installRequests.Add(new ModuleInstallRequest(
-                    temporaryZip,
-                    module.Manifest));
-            }
-
             EnsureGameIsNotRunning();
-            InstallResult result = await _moduleInstaller.InstallAsync(
+            InstallResult result = await _moduleInstaller.InstallCandidatesAsync(
                 installation.GameRoot,
-                installRequests,
+                selectedModules,
+                _payloadAcquirer,
                 BackupRoot,
                 _lifetimeCancellation.Token);
             await SaveCurrentSettingsAsync(installation.GameRoot);
-            foreach (ResolvedModule module in selectedModules)
+            foreach (ModuleCandidate module in selectedModules)
             {
                 SetModuleStatus(
                     module.ModId,
                     TextKey.ModuleStatusInstalled,
-                    module.Manifest.Version);
+                    module.Definition.Version);
             }
-            SetModStatus(TextKey.ModStatusInstalled, release.TagName);
+            SetModStatus(TextKey.ModStatusInstalled, "catalog-v1");
             LogDetailed(
                 TextKey.LogSelectedModulesInstalled,
                 OperationSeverity.Information,
@@ -405,13 +651,6 @@ public sealed partial class MainWindow : Window
             throw new UserFacingException(
                 TextKey.ErrorSteamGameDirectoryNotWritable,
                 error);
-        }
-        finally
-        {
-            foreach (string temporaryZip in temporaryZips)
-            {
-                if (File.Exists(temporaryZip)) File.Delete(temporaryZip);
-            }
         }
     }
 
@@ -505,35 +744,52 @@ public sealed partial class MainWindow : Window
 
     private async Task<(
         SteamInstallation Installation,
-        ResolvedModuleRelease Release,
-        string ProductVersion)> ResolveAndValidateLatestModulesAsync(
-            IReadOnlyCollection<string>? requiredModuleIds = null)
+        IReadOnlyList<ModuleCandidate> Candidates,
+        string ProductVersion)> ResolveAndValidateCandidatesAsync(
+            IReadOnlyCollection<string> requiredModuleIds,
+            bool requireCommonBuild = true)
     {
         SteamInstallation installation = ResolveSelectedInstallation(RequireGameRoot());
-        ResolvedModuleRelease release = await _releaseClient.GetLatestModuleReleaseAsync(
-            _lifetimeCancellation.Token);
-        IReadOnlyList<ResolvedModule> validationModules = release.Modules;
-        if (requiredModuleIds is { Count: > 0 })
+        var candidates = new List<ModuleCandidate>(requiredModuleIds.Count);
+        var unavailable = new List<string>();
+        foreach (string modId in requiredModuleIds)
         {
-            var availableIds = new HashSet<string>(
-                release.Modules.Select(module => module.ModId),
-                StringComparer.OrdinalIgnoreCase);
-            string[] unavailableIds = requiredModuleIds
-                .Where(modId => !availableIds.Contains(modId))
-                .ToArray();
-            if (unavailableIds.Length > 0)
+            if (!_moduleRegistry.TryGetEntry(modId, out ModuleRegistryEntry? entry)
+                || entry is null
+                || !entry.CanInstall)
             {
-                throw new UserFacingException(
-                    TextKey.ErrorSelectedModulesUnavailable,
-                    string.Join(", ", unavailableIds.Select(GetModuleDisplayName)));
+                unavailable.Add(GetModuleDisplayName(modId));
+                continue;
             }
-
-            validationModules = ModuleSelection.FilterAvailable(
-                release.Modules,
-                requiredModuleIds);
+            candidates.Add(entry.SelectedCandidate);
+        }
+        if (unavailable.Count > 0)
+        {
+            throw new UserFacingException(
+                TextKey.ErrorSelectedModulesUnavailable,
+                string.Join(", ", unavailable));
         }
 
-        string[] commonSupportedBuildIds = GetCommonSupportedBuildIds(validationModules);
+        if (requireCommonBuild)
+        {
+            IReadOnlyList<ModuleTargetConflict> conflicts =
+                _moduleRegistry.FindTargetConflicts(requiredModuleIds);
+            if (conflicts.Count > 0)
+            {
+                throw new UserFacingException(
+                    TextKey.ErrorModuleTargetConflict,
+                    string.Join(", ", conflicts.Select(conflict => conflict.Target)));
+            }
+        }
+
+        string[] supportedBuildIds = requireCommonBuild
+            ? GetCommonSupportedBuildIds(candidates)
+            : [installation.BuildId];
+        if (requireCommonBuild && supportedBuildIds.Length == 0)
+        {
+            throw new UserFacingException(TextKey.ErrorModulesNoCommonBuild);
+        }
+
         string executable = Path.Combine(
             installation.GameRoot,
             "Release",
@@ -543,7 +799,7 @@ public sealed partial class MainWindow : Window
             installation.GameRoot,
             productVersion,
             installation.BuildId,
-            commonSupportedBuildIds);
+            supportedBuildIds);
         if (!string.Equals(installation.StateFlags, "4", StringComparison.Ordinal))
         {
             throw new UserFacingException(
@@ -557,20 +813,20 @@ public sealed partial class MainWindow : Window
 
         _selectedInstallation = installation;
         await SaveCurrentSettingsAsync(installation.GameRoot);
-        return (installation, release, productVersion);
+        return (installation, candidates, productVersion);
     }
 
     private static string[] GetCommonSupportedBuildIds(
-        IReadOnlyList<ResolvedModule> modules)
+        IReadOnlyList<ModuleCandidate> modules)
     {
         if (modules.Count == 0) return [];
 
         var commonBuildIds = new HashSet<string>(
-            modules[0].Manifest.SupportedBuildIds,
+            modules[0].Definition.SupportedBuildIds,
             StringComparer.Ordinal);
-        foreach (ResolvedModule module in modules.Skip(1))
+        foreach (ModuleCandidate module in modules.Skip(1))
         {
-            commonBuildIds.IntersectWith(module.Manifest.SupportedBuildIds);
+            commonBuildIds.IntersectWith(module.Definition.SupportedBuildIds);
         }
         return commonBuildIds.ToArray();
     }
@@ -715,10 +971,23 @@ public sealed partial class MainWindow : Window
         _check.IsEnabled = !busy;
         _install.IsEnabled = !busy;
         _restore.IsEnabled = !busy;
+        _refreshModules.IsEnabled = !busy;
+        _openModsFolder.IsEnabled = !busy;
         _launch.IsEnabled = !busy;
-        _robotLootModule.IsEnabled = !busy;
-        _beehiveAutomationModule.IsEnabled = !busy;
-        _freezerAutomationModule.IsEnabled = !busy;
+        foreach ((string modId, ModuleRowControls row) in _moduleRows)
+        {
+            bool canSelect = (_moduleRegistry.TryGetEntry(
+                    modId,
+                    out ModuleRegistryEntry? entry)
+                    && entry is not null
+                    && entry.CanInstall)
+                || HasRestorableBackup(modId);
+            row.Selection.IsEnabled = !busy && canSelect;
+            if (row.SourceSelector is not null)
+            {
+                row.SourceSelector.IsEnabled = !busy;
+            }
+        }
         _languageSelector.IsEnabled = !busy;
     }
 
@@ -761,9 +1030,8 @@ public sealed partial class MainWindow : Window
         _launch.Content = _localizer.Get(TextKey.ButtonLaunchGame);
         _devMode.Content = _localizer.Get(TextKey.CheckBoxDevMode);
         _modulesLabel.Text = _localizer.Get(TextKey.ModulesLabel);
-        _robotLootModule.Content = _localizer.Get(TextKey.ModuleRobotLoot);
-        _beehiveAutomationModule.Content = _localizer.Get(TextKey.ModuleBeehiveAutomation);
-        _freezerAutomationModule.Content = _localizer.Get(TextKey.ModuleFreezerAutomation);
+        _refreshModules.Content = _localizer.Get(TextKey.ButtonRefreshModules);
+        _openModsFolder.Content = _localizer.Get(TextKey.ButtonOpenModsFolder);
         _languageLabel.Text = _localizer.Get(TextKey.LanguageLabel);
         _footer.Text = _localizer.Get(TextKey.LinuxPreviewFooter);
 
@@ -782,6 +1050,8 @@ public sealed partial class MainWindow : Window
             _applyingLanguage = false;
         }
 
+        RebuildModuleRows();
+        ApplySelectedModuleSettings();
         RenderLocalizedState();
     }
 
@@ -796,44 +1066,30 @@ public sealed partial class MainWindow : Window
 
     private void ApplySelectedModuleSettings()
     {
-        _robotLootModule.IsChecked = _settings.SelectedModuleIds.Contains(
-            BuiltInModuleIds.RobotLoot,
-            StringComparer.OrdinalIgnoreCase);
-        _beehiveAutomationModule.IsChecked = _settings.SelectedModuleIds.Contains(
-            BuiltInModuleIds.BeehiveAutomation,
-            StringComparer.OrdinalIgnoreCase);
-        _freezerAutomationModule.IsChecked = _settings.SelectedModuleIds.Contains(
-            BuiltInModuleIds.FreezerAutomation,
-            StringComparer.OrdinalIgnoreCase);
+        foreach ((string modId, ModuleRowControls row) in _moduleRows)
+        {
+            row.Selection.IsChecked = _settings.SelectedModuleIds.Contains(
+                modId,
+                StringComparer.OrdinalIgnoreCase);
+        }
     }
 
-    private IReadOnlyList<string> GetSelectedModuleIds()
-    {
-        var selected = new List<string>(3);
-        if (_robotLootModule.IsChecked == true)
-        {
-            selected.Add(BuiltInModuleIds.RobotLoot);
-        }
-        if (_beehiveAutomationModule.IsChecked == true)
-        {
-            selected.Add(BuiltInModuleIds.BeehiveAutomation);
-        }
-        if (_freezerAutomationModule.IsChecked == true)
-        {
-            selected.Add(BuiltInModuleIds.FreezerAutomation);
-        }
-        return selected;
-    }
+    private IReadOnlyList<string> GetSelectedModuleIds() => _moduleRows
+        .Where(pair => pair.Value.Selection.IsChecked == true)
+        .Select(pair => pair.Key)
+        .ToArray();
 
-    private string GetModuleDisplayName(string modId) => modId switch
+    private string GetModuleDisplayName(string modId)
     {
-        BuiltInModuleIds.RobotLoot => _localizer.Get(TextKey.ModuleRobotLoot),
-        BuiltInModuleIds.BeehiveAutomation =>
-            _localizer.Get(TextKey.ModuleBeehiveAutomation),
-        BuiltInModuleIds.FreezerAutomation =>
-            _localizer.Get(TextKey.ModuleFreezerAutomation),
-        _ => modId,
-    };
+        if (_moduleRegistry.TryGetEntry(modId, out ModuleRegistryEntry? entry)
+            && entry is not null)
+        {
+            string localized = entry.SelectedCandidate.Definition.DisplayName.Get(
+                _localizer.Language);
+            if (!string.IsNullOrWhiteSpace(localized)) return localized;
+        }
+        return modId;
+    }
 
     private void SetModuleStatus(
         string modId,
@@ -848,20 +1104,24 @@ public sealed partial class MainWindow : Window
 
     private void RenderModuleStatuses()
     {
-        _robotLootStatus.Text = _moduleStatusMessages[BuiltInModuleIds.RobotLoot]
-            .Render(_localizer);
-        _beehiveAutomationStatus.Text =
-            _moduleStatusMessages[BuiltInModuleIds.BeehiveAutomation]
-                .Render(_localizer);
-        _freezerAutomationStatus.Text =
-            _moduleStatusMessages[BuiltInModuleIds.FreezerAutomation]
-                .Render(_localizer);
+        foreach ((string modId, ModuleRowControls row) in _moduleRows)
+        {
+            if (_moduleStatusMessages.TryGetValue(
+                    modId,
+                    out LocalizedMessage? message))
+            {
+                row.Status.Text = message.Render(_localizer);
+            }
+        }
     }
 
     private async Task RefreshBackupStatusesAsync()
     {
+        string[] moduleIds = _moduleRegistry.Entries
+            .Select(entry => entry.ModId)
+            .ToArray();
         Dictionary<string, ModuleBackupStatus> statuses = await Task.Run(
-            () => BuiltInModuleIds.All.ToDictionary(
+            () => moduleIds.ToDictionary(
                 modId => modId,
                 modId => _backupCatalog.GetModuleStatus(BackupRoot, modId),
                 StringComparer.OrdinalIgnoreCase),
@@ -873,17 +1133,21 @@ public sealed partial class MainWindow : Window
         RenderBackupStatuses();
     }
 
+    private bool HasRestorableBackup(string modId) =>
+        _moduleBackupStatuses.TryGetValue(modId, out ModuleBackupStatus? status)
+        && status.State == BackupSnapshotState.Available;
+
     private void RenderBackupStatuses()
     {
-        RenderBackupStatus(
-            _robotLootBackupStatus,
-            _moduleBackupStatuses[BuiltInModuleIds.RobotLoot]);
-        RenderBackupStatus(
-            _beehiveAutomationBackupStatus,
-            _moduleBackupStatuses[BuiltInModuleIds.BeehiveAutomation]);
-        RenderBackupStatus(
-            _freezerAutomationBackupStatus,
-            _moduleBackupStatuses[BuiltInModuleIds.FreezerAutomation]);
+        foreach ((string modId, ModuleRowControls row) in _moduleRows)
+        {
+            if (_moduleBackupStatuses.TryGetValue(
+                    modId,
+                    out ModuleBackupStatus? status))
+            {
+                RenderBackupStatus(row.Backup, status);
+            }
+        }
     }
 
     private void RenderBackupStatus(TextBlock textBlock, ModuleBackupStatus status)
@@ -1075,7 +1339,8 @@ public sealed partial class MainWindow : Window
         _settings = new ManagerSettings(
             currentRoot,
             _localizer.Language,
-            GetSelectedModuleIds());
+            GetSelectedModuleIds(),
+            _settings.ModuleSourcePreferences);
         await _settingsStore.SaveAsync(_settings, _lifetimeCancellation.Token);
     }
 
@@ -1160,6 +1425,19 @@ public sealed partial class MainWindow : Window
             },
         };
         return await dialog.ShowDialog<bool>(this);
+    }
+
+    private sealed record ModuleRowControls(
+        CheckBox Selection,
+        TextBlock Status,
+        TextBlock Backup,
+        ComboBox? SourceSelector);
+
+    private sealed record ModuleSourceChoiceItem(
+        ModuleSourceKind Source,
+        string Label)
+    {
+        public override string ToString() => Label;
     }
 
     private sealed class UserFacingException(TextKey key, params object?[] arguments) : Exception

@@ -64,7 +64,7 @@ public sealed class LinuxDesktopProjectTests
     }
 
     [Fact]
-    public void Avalonia_exposes_three_persistent_module_rows_and_selected_restore()
+    public void Avalonia_renders_dynamic_module_rows_and_source_controls()
     {
         string projectDirectory = Path.Combine(
             FindRepoRoot(),
@@ -73,21 +73,28 @@ public sealed class LinuxDesktopProjectTests
         string xaml = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml"));
         string code = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml.cs"));
 
-        Assert.Contains("x:Name=\"RobotLootModuleCheckBox\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"BeehiveAutomationModuleCheckBox\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"FreezerAutomationModuleCheckBox\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"RobotLootModuleStatusText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"BeehiveAutomationModuleStatusText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"FreezerAutomationModuleStatusText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ModuleInstallCoordinator _moduleInstaller", code, StringComparison.Ordinal);
-        Assert.Contains("GetLatestModuleReleaseAsync", code, StringComparison.Ordinal);
-        Assert.Contains("GetSelectedModuleIds", code, StringComparison.Ordinal);
-        Assert.Contains("ModuleSelection.FilterAvailable", code, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ModulesPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RefreshModulesButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OpenModsFolderButton\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RobotLootModuleCheckBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("BeehiveAutomationModuleCheckBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("FreezerAutomationModuleCheckBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("OnlineModuleCatalogClient _onlineCatalogClient", code, StringComparison.Ordinal);
+        Assert.Contains("LocalModulePackageSource _localModuleSource", code, StringComparison.Ordinal);
+        Assert.Contains("ModulePayloadAcquirer _payloadAcquirer", code, StringComparison.Ordinal);
+        Assert.Contains("ModuleRegistry _moduleRegistry", code, StringComparison.Ordinal);
+        Assert.Contains("Dictionary<string, ModuleRowControls> _moduleRows", code, StringComparison.Ordinal);
+        Assert.Contains("RefreshModuleRegistryAsync", code, StringComparison.Ordinal);
+        Assert.Contains("RebuildModuleRows", code, StringComparison.Ordinal);
+        Assert.Contains("ChangeModuleSourceAsync", code, StringComparison.Ordinal);
+        Assert.Contains("InstallCandidatesAsync", code, StringComparison.Ordinal);
+        Assert.Contains("ModuleSourcePreferences", code, StringComparison.Ordinal);
+        Assert.Contains("FindTargetConflicts", code, StringComparison.Ordinal);
+        Assert.Contains("GetCommonSupportedBuildIds", code, StringComparison.Ordinal);
         Assert.Contains("RestoreSelectedModulesAsync", code, StringComparison.Ordinal);
-        Assert.Contains("SelectedModuleIds", code, StringComparison.Ordinal);
         Assert.Contains("TextKey.ButtonRestoreSelectedModules", code, StringComparison.Ordinal);
-        Assert.Contains("AssemblyInformationalVersionAttribute", code, StringComparison.Ordinal);
-        Assert.Contains("ReleaseChannel.GetReleaseTag", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetLatestModuleReleaseAsync", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModuleSelection.FilterAvailable", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -100,10 +107,10 @@ public sealed class LinuxDesktopProjectTests
         string xaml = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml"));
         string code = File.ReadAllText(Path.Combine(projectDirectory, "MainWindow.axaml.cs"));
 
-        Assert.Contains("x:Name=\"RobotLootBackupStatusText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"BeehiveAutomationBackupStatusText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"FreezerAutomationBackupStatusText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ModulesPanel\"", xaml, StringComparison.Ordinal);
         Assert.Contains("JsonLinesOperationJournal _operationJournal", code, StringComparison.Ordinal);
+        Assert.Contains("Dictionary<string, ModuleBackupStatus> _moduleBackupStatuses", code,
+            StringComparison.Ordinal);
         Assert.Contains("BackupSnapshotCatalog _backupCatalog", code, StringComparison.Ordinal);
         Assert.Contains("OperationHistoryPath", code, StringComparison.Ordinal);
         Assert.Contains("\"logs\", \"operations.jsonl\"", code, StringComparison.Ordinal);
