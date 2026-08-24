@@ -162,6 +162,52 @@ function New-DeterministicPackage(
     }
 }
 
+function Normalize-ZipPlatformHeaders([string]$Path) {
+    [byte[]]$bytes = [IO.File]::ReadAllBytes($Path)
+    $minimumOffset = [Math]::Max(0, $bytes.Length - 65557)
+    $endOfCentralDirectory = -1
+    for ($index = $bytes.Length - 22; $index -ge $minimumOffset; $index--) {
+        if ($bytes[$index] -eq 0x50 -and
+            $bytes[$index + 1] -eq 0x4B -and
+            $bytes[$index + 2] -eq 0x05 -and
+            $bytes[$index + 3] -eq 0x06) {
+            $endOfCentralDirectory = $index
+            break
+        }
+    }
+    if ($endOfCentralDirectory -lt 0) {
+        throw "ZIP end-of-central-directory record not found: $Path"
+    }
+
+    $entryCount = [BitConverter]::ToUInt16($bytes, $endOfCentralDirectory + 10)
+    $centralOffset = [int][BitConverter]::ToUInt32(
+        $bytes,
+        $endOfCentralDirectory + 16)
+    for ($entryIndex = 0; $entryIndex -lt $entryCount; $entryIndex++) {
+        if ($centralOffset + 46 -gt $bytes.Length -or
+            $bytes[$centralOffset] -ne 0x50 -or
+            $bytes[$centralOffset + 1] -ne 0x4B -or
+            $bytes[$centralOffset + 2] -ne 0x01 -or
+            $bytes[$centralOffset + 3] -ne 0x02) {
+            throw "Invalid ZIP central-directory entry: $Path"
+        }
+
+        # Pin the ZIP creator platform to DOS/Windows and clear host attributes.
+        $bytes[$centralOffset + 4] = 20
+        $bytes[$centralOffset + 5] = 0
+        for ($attributeIndex = 38; $attributeIndex -le 41; $attributeIndex++) {
+            $bytes[$centralOffset + $attributeIndex] = 0
+        }
+
+        $nameLength = [BitConverter]::ToUInt16($bytes, $centralOffset + 28)
+        $extraLength = [BitConverter]::ToUInt16($bytes, $centralOffset + 30)
+        $commentLength = [BitConverter]::ToUInt16($bytes, $centralOffset + 32)
+        $centralOffset += 46 + $nameLength + $extraLength + $commentLength
+    }
+
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 function Read-LegacyManifest([string]$RelativePath) {
     $path = Join-Path $repoRoot $RelativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -264,6 +310,7 @@ foreach ($spec in $moduleSpecs) {
     $packageName = "$($manifest.modId).smmmod"
     $packagePath = Join-Path $OutputDirectory $packageName
     New-DeterministicPackage $definition $payloadEntries $packagePath
+    Normalize-ZipPlatformHeaders $packagePath
     $packageSha256 = Get-FileSha256 $packagePath
     $packageUrl = "https://github.com/$RepositoryOwner/$RepositoryName/releases/download/" +
         "$ReleaseTag/$packageName"

@@ -1,0 +1,3 @@
+distribution/catalog-v1.json text eol=lf
+scripts/New-ModPackages.ps1 text eol=lf
+*.smmmod binary

@@ -80,6 +80,7 @@ public sealed class ModPackageScriptTests : IDisposable
                 catalogEntry.PackageSha256,
                 await ComputeSha256Async(firstPackage),
                 ignoreCase: true);
+            AssertPortableZipHeaders(await File.ReadAllBytesAsync(firstPackage));
 
             using ZipArchive archive = ZipFile.OpenRead(firstPackage);
             Assert.NotNull(archive.GetEntry("module.json"));
@@ -127,6 +128,12 @@ public sealed class ModPackageScriptTests : IDisposable
             "New-ModPackages.ps1"));
 
         Assert.StartsWith("#Requires -Version 7", packageScript, StringComparison.Ordinal);
+        Assert.Contains("Normalize-ZipPlatformHeaders", packageScript, StringComparison.Ordinal);
+        string attributes = File.ReadAllText(Path.Combine(repoRoot, ".gitattributes"));
+        Assert.Contains(
+            "distribution/catalog-v1.json text eol=lf",
+            attributes,
+            StringComparison.Ordinal);
         Assert.Contains("mods-v*", workflow, StringComparison.Ordinal);
         Assert.Contains("New-ModPackages.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("softprops/action-gh-release", workflow, StringComparison.Ordinal);
@@ -179,6 +186,37 @@ public sealed class ModPackageScriptTests : IDisposable
         string output = await process.StandardOutput.ReadToEndAsync();
         string error = await process.StandardError.ReadToEndAsync();
         Assert.True(process.ExitCode == 0, $"stdout: {output}\nstderr: {error}");
+    }
+
+    private static void AssertPortableZipHeaders(byte[] bytes)
+    {
+        int endOfCentralDirectory = -1;
+        for (int index = bytes.Length - 22; index >= Math.Max(0, bytes.Length - 65557); index--)
+        {
+            if (BitConverter.ToUInt32(bytes, index) == 0x06054B50)
+            {
+                endOfCentralDirectory = index;
+                break;
+            }
+        }
+        Assert.True(endOfCentralDirectory >= 0, "ZIP end-of-central-directory not found.");
+
+        int entryCount = BitConverter.ToUInt16(bytes, endOfCentralDirectory + 10);
+        int centralOffset = checked((int)BitConverter.ToUInt32(
+            bytes,
+            endOfCentralDirectory + 16));
+        for (int entryIndex = 0; entryIndex < entryCount; entryIndex++)
+        {
+            Assert.Equal(0x02014B50u, BitConverter.ToUInt32(bytes, centralOffset));
+            Assert.Equal(20, bytes[centralOffset + 4]);
+            Assert.Equal(0, bytes[centralOffset + 5]);
+            Assert.All(bytes[(centralOffset + 38)..(centralOffset + 42)],
+                value => Assert.Equal(0, value));
+            int nameLength = BitConverter.ToUInt16(bytes, centralOffset + 28);
+            int extraLength = BitConverter.ToUInt16(bytes, centralOffset + 30);
+            int commentLength = BitConverter.ToUInt16(bytes, centralOffset + 32);
+            centralOffset += 46 + nameLength + extraLength + commentLength;
+        }
     }
 
     private static async Task<string> ComputeSha256Async(string path)
