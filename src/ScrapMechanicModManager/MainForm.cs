@@ -139,7 +139,7 @@ public sealed class MainForm : Form
 
         string informationalVersion = typeof(MainForm).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "0.2.0-preview.12";
+            .InformationalVersion ?? "0.2.0-preview.13";
         _appVersion = informationalVersion.Split('+', 2)[0];
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager", _appVersion));
