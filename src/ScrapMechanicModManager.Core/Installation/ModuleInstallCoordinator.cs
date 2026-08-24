@@ -25,6 +25,45 @@ public sealed class ModuleInstallCoordinator(
             backupRoot,
             cancellationToken);
 
+    public async Task<InstallResult> InstallCandidatesAsync(
+        string gameRoot,
+        IReadOnlyList<ModuleCandidate> candidates,
+        ModulePayloadAcquirer payloadAcquirer,
+        string backupRoot,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(payloadAcquirer);
+        var leases = new List<ModulePayloadLease>(candidates.Count);
+        try
+        {
+            foreach (ModuleCandidate candidate in candidates)
+            {
+                leases.Add(await payloadAcquirer.AcquireAsync(
+                    candidate,
+                    cancellationToken));
+            }
+
+            ModuleInstallRequest[] requests = leases
+                .Select(lease => new ModuleInstallRequest(
+                    lease.PayloadPath,
+                    lease.Manifest))
+                .ToArray();
+            return await InstallAsync(
+                gameRoot,
+                requests,
+                backupRoot,
+                cancellationToken);
+        }
+        finally
+        {
+            foreach (ModulePayloadLease lease in leases.AsEnumerable().Reverse())
+            {
+                await lease.DisposeAsync();
+            }
+        }
+    }
+
     public Task<bool> RestoreModuleAsync(
         string gameRoot,
         string snapshotDirectory,

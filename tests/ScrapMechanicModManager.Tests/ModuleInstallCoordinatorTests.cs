@@ -67,6 +67,52 @@ public sealed class ModuleInstallCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task Install_candidates_acquires_local_packages_and_uses_the_existing_transaction()
+    {
+        string gameRoot = Path.Combine(_root, "game");
+        string backupRoot = Path.Combine(_root, "backups");
+        const string target = "Survival/Scripts/game/interactables/Dynamic.lua";
+        string targetPath = CreateFile(gameRoot, target, "vanilla");
+        ModuleInstallRequest request = CreateRequest(
+            "dynamic-module",
+            "dynamic.smmmod",
+            "modded",
+            target);
+        var definition = new ModulePackageDefinition
+        {
+            SchemaVersion = request.Manifest.SchemaVersion,
+            ModId = request.Manifest.ModId,
+            Version = request.Manifest.Version,
+            DisplayName = new LocalizedModuleText("Hungarian dynamic", "Dynamic"),
+            Description = new LocalizedModuleText("Hungarian description", "Description"),
+            MinimumManagerVersion = "0.2.0",
+            SupportedBuildIds = request.Manifest.SupportedBuildIds,
+            Files = request.Manifest.Files,
+        };
+        var candidate = new ModuleCandidate(
+            definition,
+            ModuleSourceKind.Local,
+            request.Manifest.PayloadSha256,
+            PackageDownloadUrl: null,
+            LocalPackagePath: request.PayloadZipPath,
+            DefaultSelected: false,
+            ValidationErrors: []);
+        using var httpClient = new HttpClient();
+        var acquirer = new ModulePayloadAcquirer(httpClient, Path.Combine(_root, "temp"));
+        var coordinator = new ModuleInstallCoordinator();
+
+        InstallResult result = await coordinator.InstallCandidatesAsync(
+            gameRoot,
+            [candidate],
+            acquirer,
+            backupRoot);
+
+        Assert.Equal("modded", File.ReadAllText(targetPath));
+        Assert.Equal(1, result.InstalledFileCount);
+        Assert.True(Directory.Exists(result.BackupDirectory));
+    }
+
+    [Fact]
     public async Task Install_rejects_target_collisions_before_writing()
     {
         string gameRoot = Path.Combine(_root, "game");
