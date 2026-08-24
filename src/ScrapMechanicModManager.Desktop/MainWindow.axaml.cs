@@ -121,7 +121,7 @@ public sealed partial class MainWindow : Window
 
         string informationalVersion = typeof(MainWindow).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "0.2.0-preview.11";
+            .InformationalVersion ?? "0.2.0-preview.12";
         _appVersion = informationalVersion.Split('+', 2)[0];
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", _appVersion));
