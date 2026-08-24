@@ -59,6 +59,7 @@ public sealed partial class MainWindow : Window
     private readonly OnlineModuleCatalogClient _onlineCatalogClient;
     private readonly LocalModulePackageSource _localModuleSource;
     private readonly ModulePayloadAcquirer _payloadAcquirer;
+    private readonly string _appVersion;
     private readonly AppLocalizer _localizer = new();
     private readonly ManagerSettingsStore _settingsStore = new(SettingsPath);
     private readonly JsonLinesOperationJournal _operationJournal = new(OperationHistoryPath);
@@ -121,9 +122,9 @@ public sealed partial class MainWindow : Window
         string informationalVersion = typeof(MainWindow).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "0.2.0-preview.11";
-        string appVersion = informationalVersion.Split('+', 2)[0];
+        _appVersion = informationalVersion.Split('+', 2)[0];
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", appVersion));
+            new ProductInfoHeaderValue("ScrapMechanicModManager-Linux", _appVersion));
         _onlineCatalogClient = new OnlineModuleCatalogClient(
             _httpClient,
             OnlineModuleCatalogClient.DefaultCatalogUri,
@@ -135,7 +136,8 @@ public sealed partial class MainWindow : Window
         _moduleCandidates = CreateFallbackCandidates();
         _moduleRegistry = ModuleRegistry.Create(
             _moduleCandidates,
-            _settings.ModuleSourcePreferences);
+            _settings.ModuleSourcePreferences,
+            _appVersion);
 
         RebuildModuleRows();
         ApplySelectedModuleSettings();
@@ -344,7 +346,8 @@ public sealed partial class MainWindow : Window
         _moduleCandidates = candidates;
         _moduleRegistry = ModuleRegistry.Create(
             _moduleCandidates,
-            _settings.ModuleSourcePreferences);
+            _settings.ModuleSourcePreferences,
+            _appVersion);
         RebuildModuleRows();
         ApplySelectedModuleSettings();
         await RefreshBackupStatusesAsync();
@@ -481,7 +484,10 @@ public sealed partial class MainWindow : Window
             _localizer.Language,
             GetSelectedModuleIds(),
             preferences);
-        _moduleRegistry = ModuleRegistry.Create(_moduleCandidates, preferences);
+        _moduleRegistry = ModuleRegistry.Create(
+            _moduleCandidates,
+            preferences,
+            _appVersion);
         RebuildModuleRows();
         await SaveCurrentSettingsAsync();
     }

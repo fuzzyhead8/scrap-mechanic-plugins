@@ -94,6 +94,7 @@ public sealed class MainForm : Form
     private readonly OnlineModuleCatalogClient _onlineCatalogClient;
     private readonly LocalModulePackageSource _localModuleSource;
     private readonly ModulePayloadAcquirer _payloadAcquirer;
+    private readonly string _appVersion;
     private readonly AppLocalizer _localizer = new();
     private readonly ManagerSettingsStore _settingsStore = new(SettingsPath);
     private readonly JsonLinesOperationJournal _operationJournal = new(OperationHistoryPath);
@@ -139,9 +140,9 @@ public sealed class MainForm : Form
         string informationalVersion = typeof(MainForm).Assembly
             .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "0.2.0-preview.11";
-        string appVersion = informationalVersion.Split('+', 2)[0];
+        _appVersion = informationalVersion.Split('+', 2)[0];
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("ScrapMechanicModManager", appVersion));
+            new ProductInfoHeaderValue("ScrapMechanicModManager", _appVersion));
         _onlineCatalogClient = new OnlineModuleCatalogClient(
             _httpClient,
             OnlineModuleCatalogClient.DefaultCatalogUri,
@@ -153,7 +154,8 @@ public sealed class MainForm : Form
         _moduleCandidates = CreateFallbackCandidates();
         _moduleRegistry = ModuleRegistry.Create(
             _moduleCandidates,
-            _settings.ModuleSourcePreferences);
+            _settings.ModuleSourcePreferences,
+            _appVersion);
 
         InitializeUi();
         RebuildModuleRows();
@@ -447,7 +449,8 @@ public sealed class MainForm : Form
         _moduleCandidates = candidates;
         _moduleRegistry = ModuleRegistry.Create(
             _moduleCandidates,
-            _settings.ModuleSourcePreferences);
+            _settings.ModuleSourcePreferences,
+            _appVersion);
         RebuildModuleRows();
         ApplySelectedModuleSettings();
         RefreshBackupStatuses();
@@ -595,7 +598,10 @@ public sealed class MainForm : Form
             _localizer.Language,
             GetSelectedModuleIds(),
             preferences);
-        _moduleRegistry = ModuleRegistry.Create(_moduleCandidates, preferences);
+        _moduleRegistry = ModuleRegistry.Create(
+            _moduleCandidates,
+            preferences,
+            _appVersion);
         RebuildModuleRows();
         await SaveCurrentSettingsAsync();
     }

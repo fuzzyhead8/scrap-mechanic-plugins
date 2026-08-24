@@ -80,7 +80,7 @@ dotnet publish src/ScrapMechanicModManager.Desktop/ScrapMechanicModManager.Deskt
   -p:PublishSingleFile=true -o artifacts/linux-publish
 ```
 
-Create independent mod packages and the catalog:
+Create independent mod packages and the catalog with PowerShell 7 (`pwsh`):
 
 ```powershell
 ./scripts/New-ModPackages.ps1 `

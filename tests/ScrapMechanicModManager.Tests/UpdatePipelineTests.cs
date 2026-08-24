@@ -58,6 +58,51 @@ public sealed class UpdatePipelineTests
         Assert.Contains(errors, error => error.Contains("Sha256", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("NUL")]
+    [InlineData("folder/CON.lua")]
+    [InlineData("folder/AUX.txt")]
+    [InlineData("folder/COM1")]
+    [InlineData("folder/lpt9.data")]
+    [InlineData("folder/trailing.")]
+    [InlineData("folder/trailing ")]
+    [InlineData("folder/invalid?.lua")]
+    public void Manifest_rejects_Windows_unsafe_path_segments(string target)
+    {
+        ModManifest manifest = CreateValidManifest(target: target);
+
+        Assert.Contains(
+            manifest.Validate(),
+            error => error.Contains("Invalid Target path", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Module_definition_rejects_an_invalid_minimum_manager_version()
+    {
+        var definition = new ModulePackageDefinition
+        {
+            SchemaVersion = 1,
+            ModId = "example",
+            Version = "1.0.0",
+            DisplayName = new LocalizedModuleText("Hungarian", "English"),
+            MinimumManagerVersion = "not-a-version",
+            SupportedBuildIds = ["24529696"],
+            Files =
+            [
+                new ModFileEntry
+                {
+                    Source = "payload/example.lua",
+                    Target = "Survival/Scripts/example.lua",
+                    Sha256 = ValidHash,
+                },
+            ],
+        };
+
+        Assert.Contains(
+            definition.Validate(),
+            error => error.Contains("MinimumManagerVersion", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task Hash_service_computes_uppercase_sha256()
     {
@@ -170,24 +215,30 @@ public sealed class UpdatePipelineTests
         Assert.Equal("v0.2.0-preview.6", release.TagName);
     }
 
-    private static ModManifest CreateValidManifest(string version = "1.0.0") => new()
+    private static ModManifest CreateValidManifest(
+        string version = "1.0.0",
+        string target =
+            "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua")
     {
-        SchemaVersion = 1,
-        ModId = "robot-loot",
-        Version = version,
-        PayloadAsset = "robots_01.zip",
-        PayloadSha256 = ValidHash,
-        SupportedBuildIds = ["24529696"],
-        Files =
-        [
-            new ModFileEntry
-            {
-                Source = "robots_01/lootsource_haybot.lua",
-                Target = "Survival/Scripts/game/loot/lootsources/robots_01/lootsource_haybot.lua",
-                Sha256 = ValidHash,
-            },
-        ],
-    };
+        return new ModManifest
+        {
+            SchemaVersion = 1,
+            ModId = "robot-loot",
+            Version = version,
+            PayloadAsset = "robots_01.zip",
+            PayloadSha256 = ValidHash,
+            SupportedBuildIds = ["24529696"],
+            Files =
+            [
+                new ModFileEntry
+                {
+                    Source = "robots_01/lootsource_haybot.lua",
+                    Target = target,
+                    Sha256 = ValidHash,
+                },
+            ],
+        };
+    }
 
     private sealed class FakeHttpHandler(
         IReadOnlyDictionary<string, string> responses) : HttpMessageHandler
