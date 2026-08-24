@@ -198,31 +198,31 @@ public sealed class DistributionManifestTests
     }
 
     [Fact]
-    public void Distribution_version_matches_both_launcher_projects()
+    public void Launcher_release_version_is_independent_from_module_versions()
     {
         string repoRoot = FindRepoRoot();
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(
             repoRoot,
             "distribution",
             "manifest.json")));
-        string distributionVersion = manifest.RootElement
+        string moduleVersion = manifest.RootElement
             .GetProperty("version")
             .GetString()!;
+        string windowsVersion = ReadProjectVersion(Path.Combine(
+            repoRoot,
+            "src",
+            "ScrapMechanicModManager",
+            "ScrapMechanicModManager.csproj"));
+        string linuxVersion = ReadProjectVersion(Path.Combine(
+            repoRoot,
+            "src",
+            "ScrapMechanicModManager.Desktop",
+            "ScrapMechanicModManager.Desktop.csproj"));
 
-        Assert.Equal(
-            distributionVersion,
-            ReadProjectVersion(Path.Combine(
-                repoRoot,
-                "src",
-                "ScrapMechanicModManager",
-                "ScrapMechanicModManager.csproj")));
-        Assert.Equal(
-            distributionVersion,
-            ReadProjectVersion(Path.Combine(
-                repoRoot,
-                "src",
-                "ScrapMechanicModManager.Desktop",
-                "ScrapMechanicModManager.Desktop.csproj")));
+        Assert.Equal("0.2.0-preview.12", windowsVersion);
+        Assert.Equal(windowsVersion, linuxVersion);
+        Assert.Equal("0.2.0-preview.11", moduleVersion);
+        Assert.NotEqual(moduleVersion, windowsVersion);
     }
 
     private static string ReadProjectVersion(string projectPath)
