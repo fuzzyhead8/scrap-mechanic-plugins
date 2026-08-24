@@ -219,7 +219,7 @@ public sealed class DistributionManifestTests
             "ScrapMechanicModManager.Desktop",
             "ScrapMechanicModManager.Desktop.csproj"));
 
-        Assert.Equal("0.2.0-preview.12", windowsVersion);
+        Assert.Equal("0.2.0-preview.13", windowsVersion);
         Assert.Equal(windowsVersion, linuxVersion);
         Assert.Equal("0.2.0-preview.11", moduleVersion);
         Assert.NotEqual(moduleVersion, windowsVersion);

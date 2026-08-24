@@ -92,7 +92,7 @@ Legacy launcher compatibility assets can still be generated during the transitio
 
 ```powershell
 ./scripts/New-ReleasePayload.ps1 `
-  -Version 0.2.0-preview.12 `
+  -Version 0.2.0-preview.13 `
   -OutputDirectory artifacts/release
 ```
 
@@ -108,7 +108,7 @@ Legacy launcher compatibility assets can still be generated during the transitio
 
 ### Mod manager
 
-1. Create a manager tag such as `v0.2.0-preview.12` only for manager features or security fixes.
+1. Create a manager tag such as `v0.2.0-preview.13` only for manager features or security fixes.
 2. `.github/workflows/release.yml` builds the Windows EXE and Linux `tar.gz`; legacy manifest/payload assets remain temporarily for compatibility.
 3. Stable clients query the GitHub latest-release API. Prereleases do not replace the stable latest channel.
 
